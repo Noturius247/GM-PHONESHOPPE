@@ -76,6 +76,8 @@ node_modules/
 
 # Sensitive / Credentials
 google-services.json
+GoogleService-Info.plist
+lib/firebase_options.dart
 CREDENTIALS.md
 
 # IDE & tool config
