@@ -1,0 +1,388 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null",
+      "$userId": {
+        ".write": "auth != null && (auth.token.email == 'luzaresbenzgerald@gmail.com' || auth.token.email == 'gmphoneshoppe24@gmail.com' || (newData.child('email').val() === auth.token.email))"
+      },
+      ".indexOn": ["email", "status"]
+    },
+    "invitations": {
+      ".read": true,
+      ".write": "auth != null",
+      ".indexOn": ["email", "status", "token"]
+    },
+    "inventory": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$category": {
+        ".indexOn": ["name", "serialNo", "status", "quantity", "brand"],
+        "$itemId": {
+          ".validate": "newData.hasChildren(['name', 'quantity', 'status'])",
+          "name": {
+            ".validate": "newData.isString() && newData.val().length > 0"
+          },
+          "serialNo": {
+            ".validate": "newData.isString()"
+          },
+          "modelNumber": {
+            ".validate": "newData.isString()"
+          },
+          "barcode": {
+            ".validate": "newData.isString()"
+          },
+          "description": {
+            ".validate": "newData.isString()"
+          },
+          "quantity": {
+            ".validate": "newData.isNumber()"
+          },
+          "unitCost": {
+            ".validate": "newData.isNumber()"
+          },
+          "sellingPrice": {
+            ".validate": "newData.isNumber()"
+          },
+          "reorderLevel": {
+            ".validate": "newData.isNumber()"
+          },
+          "status": {
+            ".validate": "newData.isString() && (newData.val() == 'In Stock' || newData.val() == 'Low Stock' || newData.val() == 'Out of Stock')"
+          },
+          "supplier": {
+            ".validate": "newData.isString()"
+          },
+          "brand": {
+            ".validate": "newData.isString()"
+          },
+          "location": {
+            ".validate": "newData.isString()"
+          },
+          "notes": {
+            ".validate": "newData.isString()"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber()"
+          },
+          "addedBy": {
+            "email": {
+              ".validate": "newData.isString()"
+            },
+            "name": {
+              ".validate": "newData.isString()"
+            },
+            "timestamp": {
+              ".validate": "newData.isNumber()"
+            }
+          },
+          "lastUpdatedBy": {
+            "email": {
+              ".validate": "newData.isString()"
+            },
+            "name": {
+              ".validate": "newData.isString()"
+            },
+            "timestamp": {
+              ".validate": "newData.isNumber()"
+            }
+          }
+        }
+      }
+    },
+    "inventory_history": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["itemId", "timestamp", "category"],
+      "$historyId": {
+        ".validate": "newData.hasChildren(['category', 'itemId', 'changeType', 'timestamp'])",
+        "category": {
+          ".validate": "newData.isString()"
+        },
+        "itemId": {
+          ".validate": "newData.isString()"
+        },
+        "itemName": {
+          ".validate": "newData.isString()"
+        },
+        "changeType": {
+          ".validate": "newData.isString() && (newData.val() == 'add' || newData.val() == 'remove' || newData.val() == 'set')"
+        },
+        "quantityChange": {
+          ".validate": "newData.isNumber()"
+        },
+        "previousQty": {
+          ".validate": "newData.isNumber()"
+        },
+        "newQty": {
+          ".validate": "newData.isNumber()"
+        },
+        "reason": {
+          ".validate": "newData.isString()"
+        },
+        "changedBy": {
+          "email": {
+            ".validate": "newData.isString()"
+          },
+          "name": {
+            ".validate": "newData.isString()"
+          }
+        },
+        "timestamp": {
+          ".validate": "newData.isNumber()"
+        }
+      }
+    },
+    "gsat_activations": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["timestamp"],
+      "$activationId": {
+        ".validate": "newData.hasChildren(['serialNumber', 'name', 'address', 'contactNumber', 'dealer', 'createdAt', 'timestamp'])",
+        "serialNumber": { ".validate": "newData.isString()" },
+        "name": { ".validate": "newData.isString()" },
+        "address": { ".validate": "newData.isString()" },
+        "contactNumber": { ".validate": "newData.isString()" },
+        "dealer": { ".validate": "newData.isString()" },
+        "createdAt": { ".validate": "newData.isString()" },
+        "timestamp": { ".validate": "newData.isNumber()" }
+      }
+    },
+    "pos_transactions": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["timestamp", "date", "processedBy", "processedByEmail"],
+      "$transactionId": {
+        ".validate": "newData.hasChildren(['transactionId', 'items', 'total', 'paymentMethod', 'processedBy', 'timestamp'])",
+        "transactionId": { ".validate": "newData.isString()" },
+        "items": { ".validate": "newData.hasChildren()" },
+        "subtotal": { ".validate": "newData.isNumber()" },
+        "tax": { ".validate": "newData.isNumber()" },
+        "total": { ".validate": "newData.isNumber()" },
+        "actualRevenue": { ".validate": "newData.isNumber()" },
+        "totalCashOutAmount": { ".validate": "newData.isNumber()" },
+        "totalServiceFee": { ".validate": "newData.isNumber()" },
+        "hasCashOut": { ".validate": "newData.isBoolean()" },
+        "paymentMethod": { ".validate": "newData.isString() && (newData.val() == 'cash' || newData.val() == 'card' || newData.val() == 'gcash' || newData.val() == 'gcash/maya')" },
+        "customerName": { ".validate": "newData.isString()" },
+        "cashReceived": { ".validate": "newData.isNumber()" },
+        "change": { ".validate": "newData.isNumber()" },
+        "referenceNumber": { ".validate": "newData.isString()" },
+        "processedBy": { ".validate": "newData.isString()" },
+        "processedByEmail": { ".validate": "newData.isString()" },
+        "deviceUser": { ".validate": "newData.isString()" },
+        "timestamp": { ".validate": "newData.isString()" },
+        "date": { ".validate": "newData.isString()" },
+        "basketId": { ".validate": "newData.isString()" },
+        "basketOwner": { ".validate": "newData.isString()" },
+        "vatEnabled": { ".validate": "newData.isBoolean()" },
+        "vatRate": { ".validate": "newData.isNumber()" },
+        "vatInclusive": { ".validate": "newData.isBoolean()" },
+        "vatAmount": { ".validate": "newData.isNumber()" }
+      }
+    },
+    "pos_baskets": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["userEmail", "status", "createdAt"],
+      "$basketId": {
+        ".validate": "newData.hasChildren(['basketNumber', 'userEmail', 'userName', 'items', 'total', 'itemCount', 'status', 'createdAt'])",
+        "basketNumber": { ".validate": "newData.isNumber()" },
+        "userEmail": { ".validate": "newData.isString()" },
+        "userName": { ".validate": "newData.isString()" },
+        "items": { ".validate": "newData.hasChildren()" },
+        "total": { ".validate": "newData.isNumber()" },
+        "itemCount": { ".validate": "newData.isNumber()" },
+        "status": { ".validate": "newData.isString() && (newData.val() == 'pending' || newData.val() == 'processing')" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "updatedAt": { ".validate": "newData.isNumber()" }
+      }
+    },
+    "pos_settings": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "vatEnabled": { ".validate": "newData.isBoolean()" },
+      "vatRate": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+      "vatInclusive": { ".validate": "newData.isBoolean()" }
+    },
+    "pos_item_requests": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["status", "createdAt"],
+      "$requestId": {
+        ".validate": "newData.hasChildren(['itemName', 'quantity', 'estimatedPrice', 'status', 'requestedBy', 'createdAt'])",
+        "itemName": { ".validate": "newData.isString() && newData.val().length > 0" },
+        "quantity": { ".validate": "newData.isNumber() && newData.val() > 0" },
+        "estimatedPrice": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "approvedPrice": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "reason": { ".validate": "newData.isString()" },
+        "rejectionReason": { ".validate": "newData.isString()" },
+        "status": { ".validate": "newData.isString() && (newData.val() == 'pending' || newData.val() == 'approved' || newData.val() == 'rejected' || newData.val() == 'used')" },
+        "requestedBy": {
+          "email": { ".validate": "newData.isString()" },
+          "name": { ".validate": "newData.isString()" },
+          "timestamp": { ".validate": "newData.isNumber()" }
+        },
+        "reviewedBy": {
+          "email": { ".validate": "newData.isString()" },
+          "name": { ".validate": "newData.isString()" },
+          "timestamp": { ".validate": "newData.isNumber()" },
+          "action": { ".validate": "newData.isString()" }
+        },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "updatedAt": { ".validate": "newData.isNumber()" }
+      }
+    },
+    "pos_live_cart": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "staff_pins": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["userId"],
+      "$pin": {
+        ".validate": "newData.hasChildren(['email', 'name', 'userId'])",
+        "email": { ".validate": "newData.isString()" },
+        "name": { ".validate": "newData.isString()" },
+        "userId": { ".validate": "newData.isString()" }
+      }
+    },
+    "services": {
+      ".read": "auth != null",
+      "$serviceType": {
+        "customers": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          ".indexOn": ["serialNumber", "ccaNumber", "accountNumber", "boxId"],
+          "$customerId": {
+            ".validate": "newData.hasChildren(['name', 'status', 'createdAt'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0"
+            },
+            "status": {
+              ".validate": "newData.isString() && (newData.val() == 'Active' || newData.val() == 'Inactive' || newData.val() == 'Pending')"
+            },
+            "serialNumber": {
+              ".validate": "newData.isString()"
+            },
+            "ccaNumber": {
+              ".validate": "newData.isString()"
+            },
+            "boxNumber": {
+              ".validate": "newData.isString()"
+            },
+            "boxId": {
+              ".validate": "newData.isString()"
+            },
+            "accountNumber": {
+              ".validate": "newData.isString()"
+            },
+            "address": {
+              ".validate": "newData.isString()"
+            },
+            "dateOfActivation": {
+              ".validate": "newData.isString()"
+            },
+            "dateOfPurchase": {
+              ".validate": "newData.isString()"
+            },
+            "price": {
+              ".validate": "newData.isNumber()"
+            },
+            "supplier": {
+              ".validate": "newData.isString()"
+            },
+            "plan": {
+              ".validate": "newData.isString()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "updatedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "addedBy": {
+              "email": {
+                ".validate": "newData.isString()"
+              },
+              "name": {
+                ".validate": "newData.isString()"
+              },
+              "timestamp": {
+                ".validate": "newData.isNumber()"
+              }
+            },
+            "lastUpdatedBy": {
+              "email": {
+                ".validate": "newData.isString()"
+              },
+              "name": {
+                ".validate": "newData.isString()"
+              },
+              "timestamp": {
+                ".validate": "newData.isNumber()"
+              }
+            }
+          }
+        },
+        "suggestions": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          ".indexOn": ["status", "createdAt"],
+          "$suggestionId": {
+            ".validate": "newData.hasChildren(['type', 'status', 'submittedBy', 'createdAt'])",
+            "type": {
+              ".validate": "newData.isString() && (newData.val() == 'add' || newData.val() == 'edit' || newData.val() == 'delete')"
+            },
+            "status": {
+              ".validate": "newData.isString() && (newData.val() == 'pending' || newData.val() == 'approved' || newData.val() == 'rejected')"
+            },
+            "customerId": {
+              ".validate": "newData.isString()"
+            },
+            "customerData": {
+              ".validate": "newData.hasChildren()"
+            },
+            "submittedBy": {
+              "email": {
+                ".validate": "newData.isString()"
+              },
+              "name": {
+                ".validate": "newData.isString()"
+              },
+              "timestamp": {
+                ".validate": "newData.isNumber()"
+              }
+            },
+            "reviewedBy": {
+              "email": {
+                ".validate": "newData.isString()"
+              },
+              "name": {
+                ".validate": "newData.isString()"
+              },
+              "timestamp": {
+                ".validate": "newData.isNumber()"
+              },
+              "action": {
+                ".validate": "newData.isString()"
+              }
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "updatedAt": {
+              ".validate": "newData.isNumber()"
+            },
+            "reason": {
+              ".validate": "newData.isString()"
+            }
+          }
+        }
+      }
+    }
+  }
+}
