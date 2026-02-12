@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../services/firebase_database_service.dart';
 import '../services/auth_service.dart';
 import '../utils/csv_download.dart' as csv_helper;
+import '../utils/snackbar_utils.dart';
 
 class GsatActivationPage extends StatefulWidget {
   const GsatActivationPage({super.key});
@@ -67,22 +68,12 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
 
   void _exportToCsv() {
     if (!kIsWeb) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Export is only available on web'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      SnackBarUtils.showWarning(context, 'Export is only available on web');
       return;
     }
 
     if (_activations.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No data to export'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      SnackBarUtils.showWarning(context, 'No data to export');
       return;
     }
 
@@ -111,13 +102,7 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
     // Download file (web only)
     csv_helper.downloadCsvFile(csvBuffer.toString(), fileName);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Exported to $fileName'),
-        backgroundColor: gsatGradient[0],
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    SnackBarUtils.showSuccess(context, 'Exported to $fileName');
   }
 
   String _escapeCsvField(String field) {
@@ -150,12 +135,7 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
                 await FirebaseDatabaseService.deleteGsatActivation(activation['id']);
                 _loadActivations();
                 if (mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Activation deleted'),
-                      backgroundColor: Colors.red, 
-                    ),
-                  );
+                  SnackBarUtils.showError(this.context, 'Activation deleted');
                 }
               }
             },
@@ -199,7 +179,11 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
             ],
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Form(
                 key: formKey,
@@ -222,7 +206,7 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
                     const SizedBox(height: 16),
                     _buildDialogTextField(
                       controller: addressController,
-                      label: 'Address (Municipality, Province) *',
+                      label: MediaQuery.of(context).size.width < 360 ? 'Address *' : 'Address (Municipality, Province) *',
                       icon: Icons.location_on,
                       validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
                     ),
@@ -281,25 +265,13 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
 
                         if (context.mounted) {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Activation added successfully!'),
-                              backgroundColor: gsatGradient[0],
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
+                          SnackBarUtils.showSuccess(this.context, 'Activation added successfully!');
                           _loadActivations();
                         }
                       } catch (e) {
                         setDialogState(() => isSubmitting = false);
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: $e'),
-                              backgroundColor: Colors.red,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
+                          SnackBarUtils.showError(context, 'Error: $e');
                         }
                       }
                     },
@@ -360,7 +332,11 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
             ],
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Form(
                 key: formKey,
@@ -383,7 +359,7 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
                     const SizedBox(height: 16),
                     _buildDialogTextField(
                       controller: addressController,
-                      label: 'Address (Municipality, Province) *',
+                      label: MediaQuery.of(context).size.width < 360 ? 'Address *' : 'Address (Municipality, Province) *',
                       icon: Icons.location_on,
                       validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
                     ),
@@ -443,25 +419,13 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
 
                         if (context.mounted) {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(
-                              content: const Text('Activation updated successfully!'),
-                              backgroundColor: gsatGradient[0],
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
+                          SnackBarUtils.showSuccess(this.context, 'Activation updated successfully!');
                           _loadActivations();
                         }
                       } catch (e) {
                         setDialogState(() => isSubmitting = false);
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error: $e'),
-                              backgroundColor: Colors.red,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
+                          SnackBarUtils.showError(context, 'Error: $e');
                         }
                       }
                     },
@@ -548,6 +512,7 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF1A0A0A),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'gsatAddActivation',
         onPressed: _showAddDialog,
         backgroundColor: gsatGradient[0],
         icon: const Icon(Icons.add, color: Colors.white),
@@ -727,6 +692,7 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
   }
 
   Widget _buildDataTable(bool isMobile) {
+    final screenWidth = MediaQuery.of(context).size.width;
     return Container(
       width: isMobile ? null : double.infinity,
       decoration: BoxDecoration(
@@ -828,27 +794,35 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
             return DataRow(
               cells: [
                 DataCell(
-                  Text(
-                    activation['serialNumber'] ?? 'N/A',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: isMobile ? 12 : 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    activation['name'] ?? 'N/A',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: isMobile ? 12 : 14,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: screenWidth < 360 ? 80 : (isMobile ? 100 : 150)),
+                    child: Text(
+                      activation['serialNumber'] ?? 'N/A',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: isMobile ? 12 : 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
                 DataCell(
                   ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: isMobile ? 120 : 300),
+                    constraints: BoxConstraints(maxWidth: screenWidth < 360 ? 80 : (isMobile ? 100 : 150)),
+                    child: Text(
+                      activation['name'] ?? 'N/A',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: isMobile ? 12 : 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: screenWidth < 360 ? 100 : (isMobile ? 120 : 300)),
                     child: Text(
                       activation['address'] ?? 'N/A',
                       style: TextStyle(
@@ -860,29 +834,41 @@ class _GsatActivationPageState extends State<GsatActivationPage> {
                   ),
                 ),
                 DataCell(
-                  Text(
-                    activation['contactNumber'] ?? 'N/A',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: isMobile ? 12 : 14,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: screenWidth < 360 ? 80 : (isMobile ? 100 : 150)),
+                    child: Text(
+                      activation['contactNumber'] ?? 'N/A',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: isMobile ? 12 : 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
                 DataCell(
-                  Text(
-                    activation['dealer'] ?? 'N/A',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: isMobile ? 12 : 14,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: screenWidth < 360 ? 80 : (isMobile ? 100 : 150)),
+                    child: Text(
+                      activation['dealer'] ?? 'N/A',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: isMobile ? 12 : 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
                 DataCell(
-                  Text(
-                    _formatDate(activation['createdAt']),
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: isMobile ? 11 : 13,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: screenWidth < 360 ? 70 : (isMobile ? 80 : 120)),
+                    child: Text(
+                      _formatDate(activation['createdAt']),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: isMobile ? 11 : 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),

@@ -10,6 +10,7 @@ import '../widgets/error_dialog.dart';
 import 'serial_scanner_page.dart';
 import 'multi_scanner_page.dart';
 import 'ocr_scanner_page.dart';
+import '../utils/snackbar_utils.dart';
 
 class CignalPage extends StatefulWidget {
   const CignalPage({super.key});
@@ -260,7 +261,11 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -460,12 +465,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
               onPressed: () async {
                 // Require at least a name
                 if (nameController.text.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a name'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please enter a name');
                   return;
                 }
 
@@ -515,13 +515,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                 final hasConnection = await CacheService.hasConnectivity();
                 if (!hasConnection) {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No internet connection. Cannot add customer offline.'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  SnackBarUtils.showError(context, 'No internet connection. Cannot add customer offline.');
                   return;
                 }
 
@@ -593,22 +587,10 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                     _currentPage = 0; // Reset to first page to show new customer
                   });
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Customer added successfully!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(context, 'Customer added successfully!');
                 } else {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to add customer'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  SnackBarUtils.showError(context, 'Failed to add customer');
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -1090,13 +1072,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                 }
 
                 if (missingFields.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Please fill in: ${missingFields.join(', ')}'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please fill in: ${missingFields.join(', ')}');
                   return;
                 }
 
@@ -1169,7 +1145,11 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
             ],
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1405,13 +1385,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                 }
 
                 if (missingFields.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Please fill in: ${missingFields.join(', ')}'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please fill in: ${missingFields.join(', ')}');
                   return;
                 }
 
@@ -1605,13 +1579,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
               if (!hasConnection) {
                 if (!context.mounted) return;
                 Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No internet connection. Cannot add customer offline.'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                SnackBarUtils.showError(context, 'No internet connection. Cannot add customer offline.');
                 return;
               }
 
@@ -1695,8 +1663,6 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                 customerData['price'] = price;
               }
 
-              // Store scaffold messenger before closing dialog
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
               Navigator.of(context).pop(); // Close add dialog
 
               // Add customer directly (no approval needed for adding)
@@ -1729,21 +1695,11 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                   _currentPage = 0; // Reset to first page to show new customer
                 });
 
-                scaffoldMessenger.showSnackBar(
-                  SnackBar(
-                    content: Text('Customer $name added successfully!'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: const Color(0xFF2ECC71),
-                  ),
-                );
+                if (!mounted) return;
+                SnackBarUtils.showSuccess(this.context, 'Customer $name added successfully!');
               } else {
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Failed to add customer'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                if (!mounted) return;
+                SnackBarUtils.showError(this.context, 'Failed to add customer');
               }
             },
             style: ElevatedButton.styleFrom(
@@ -2233,7 +2189,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                           GridView.count(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 4,
+                            crossAxisCount: screenWidth < 360 ? 1 : (screenWidth < 600 ? 2 : 4),
                             mainAxisSpacing: isCompact ? 4 : (isMobile ? 4 : 16),
                             crossAxisSpacing: isCompact ? 4 : (isMobile ? 4 : 16),
                             childAspectRatio: isCompact ? 2.0 : (isMobile ? 1.0 : 1.3),
@@ -2437,7 +2393,11 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2635,17 +2595,11 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
             ),
             ElevatedButton(
               onPressed: () async {
-                // Store context-dependent objects at the start before any async operations
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                // Store navigator before any async operations
                 final navigator = Navigator.of(context);
 
                 if (nameController.text.isEmpty) {
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter customer name'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please enter customer name');
                   return;
                 }
 
@@ -2690,25 +2644,24 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                 navigator.pop();
 
                 // Show saving indicator
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Row(
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
+                SnackBarUtils.showTopSnackBar(
+                  this.context,
+                  message: 'Saving changes...',
+                  backgroundColor: const Color(0xFF3498DB),
+                  duration: const Duration(seconds: 30),
+                  content: const Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
-                        SizedBox(width: 12),
-                        Text('Saving changes...'),
-                      ],
-                    ),
-                    duration: Duration(seconds: 30),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Color(0xFF3498DB),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Saving changes...'),
+                    ],
                   ),
                 );
 
@@ -2734,7 +2687,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                 if (!mounted) return;
 
                 // Hide saving indicator
-                scaffoldMessenger.hideCurrentSnackBar();
+                ScaffoldMessenger.of(this.context).hideCurrentSnackBar();
 
                 if (success) {
                   // Update customer incrementally instead of reloading all
@@ -2760,21 +2713,9 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                     });
                   }
 
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Customer ${nameController.text} updated successfully!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: const Color(0xFF2ECC71),
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(this.context, 'Customer ${nameController.text} updated successfully!');
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to update customer'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  SnackBarUtils.showError(this.context, 'Failed to update customer');
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -2881,21 +2822,9 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                     _filteredCustomers.removeWhere((c) => c['id'] == customerId);
                   });
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${customer['name']} deleted'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: const Color(0xFFE74C3C),
-                    ),
-                  );
+                  SnackBarUtils.showError(this.context, '${customer['name']} deleted');
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to delete customer'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  SnackBarUtils.showError(this.context, 'Failed to delete customer');
                 }
               } else {
                 // Non-admin: Submit delete suggestion with reason
@@ -2921,13 +2850,7 @@ class _CignalPageState extends State<CignalPage> with TickerProviderStateMixin {
                     message: 'A pending delete request already exists for this customer.\n\nPlease wait for admin to review the existing request.',
                   );
                 } else if (result != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Delete request for ${customer['name']} submitted for admin approval!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(this.context, 'Delete request for ${customer['name']} submitted for admin approval!');
                 } else {
                   await ErrorDialog.showSaveError(
                     context: context,
@@ -2970,7 +2893,8 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = isCompact ? 8.0 : (isMobile ? 12.0 : 40.0);
+    // Reduced sizes to match reports page style
+    final borderRadius = isCompact ? 8.0 : (isMobile ? 10.0 : 16.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
@@ -2985,22 +2909,22 @@ class _StatCard extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            // Rounded rectangle decorative element - hide in compact mode
-            if (!isCompact)
+            // Rounded rectangle decorative element - hide on mobile
+            if (!isCompact && !isMobile)
               Positioned(
-                top: isMobile ? -15 : -30,
-                right: isMobile ? -15 : -30,
+                top: -20,
+                right: -20,
                 child: Container(
-                  width: isMobile ? 50 : 120,
-                  height: isMobile ? 50 : 120,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(isMobile ? 12 : 30),
+                    borderRadius: BorderRadius.circular(15),
                     color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
             Padding(
-              padding: EdgeInsets.all(isCompact ? 4 : (isMobile ? 6 : 16)),
+              padding: EdgeInsets.all(isCompact ? 4 : (isMobile ? 8 : 14)),
               child: isCompact
                   ? Row(
                       children: [
@@ -3015,7 +2939,7 @@ class _StatCard extends StatelessWidget {
                                 value,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -3038,15 +2962,15 @@ class _StatCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(icon, color: Colors.white, size: isMobile ? 16 : 32),
-                        SizedBox(height: isMobile ? 2 : 8),
+                        Icon(icon, color: Colors.white, size: isMobile ? 16 : 24),
+                        SizedBox(height: isMobile ? 2 : 6),
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
                             value,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: isMobile ? 14 : 32,
+                              fontSize: isMobile ? 13 : 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -3057,7 +2981,7 @@ class _StatCard extends StatelessWidget {
                             title,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: isMobile ? 8 : 14,
+                              fontSize: isMobile ? 8 : 11,
                             ),
                           ),
                         ),
@@ -3150,13 +3074,11 @@ class _CustomerCardState extends State<_CustomerCard> with SingleTickerProviderS
 
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Copied: $text'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-        backgroundColor: const Color(0xFF8B1A1A),
-      ),
+    SnackBarUtils.showTopSnackBar(
+      context,
+      message: 'Copied: $text',
+      backgroundColor: const Color(0xFF8B1A1A),
+      duration: const Duration(seconds: 1),
     );
   }
 

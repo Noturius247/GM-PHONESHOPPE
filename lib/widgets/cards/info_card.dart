@@ -72,6 +72,8 @@ class InfoCard extends StatelessWidget {
                           style: AppTypography.titleMedium(
                             color: AppColors.textPrimary,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         AppSpacing.vXs,
                         Text(
@@ -79,6 +81,8 @@ class InfoCard extends StatelessWidget {
                           style: AppTypography.bodySmall(
                             color: AppColors.textSecondary,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -101,6 +105,7 @@ class InfoCard extends StatelessWidget {
                     child: Text(
                       status,
                       style: AppTypography.labelSmall(color: statusColor),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],

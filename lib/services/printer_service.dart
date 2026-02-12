@@ -8,6 +8,10 @@ export 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart' show Bluet
 
 /// Service for managing Bluetooth thermal printer (T58W ESC/POS)
 /// Paper width: 58mm, Print width: 48mm (384 dots at 203 dpi)
+///
+/// Uses "connect-on-demand" strategy like Loyverse POS for reliability:
+/// Instead of maintaining a persistent connection (which Bluetooth Classic
+/// doesn't handle well), we reconnect fresh before each print operation.
 class PrinterService {
   static String? _connectedAddress;
   static String? _connectedName;
@@ -15,11 +19,9 @@ class PrinterService {
   static const String _printerAddressKey = 'saved_printer_address';
   static const String _printerNameKey = 'saved_printer_name';
 
-  // Heartbeat timer for connection monitoring
+  // Heartbeat timer for UI status updates (passive - no commands sent)
   static Timer? _heartbeatTimer;
-  static const int _heartbeatIntervalSeconds = 15;
-  static int _reconnectAttempts = 0;
-  static const int _maxReconnectAttempts = 3;
+  static const int _heartbeatIntervalSeconds = 30;
 
   // Stream controllers for connection status
   static final StreamController<bool> _connectionStatusController =
@@ -55,12 +57,21 @@ class PrinterService {
     _isConnected = await PrintBluetoothThermal.connectionStatus;
     _connectionStatusController.add(_isConnected);
 
-    // Try to reconnect to saved printer
+    // Try to reconnect to saved printer if not connected
     if (!_isConnected) {
-      await _tryReconnectSavedPrinter();
+      final reconnected = await _tryReconnectSavedPrinter();
+      if (reconnected) {
+        debugPrint('Printer reconnected on initialize');
+      }
+    } else {
+      // Already connected - load saved info
+      final prefs = await SharedPreferences.getInstance();
+      _connectedAddress = prefs.getString(_printerAddressKey);
+      _connectedName = prefs.getString(_printerNameKey);
+      debugPrint('Printer already connected: $_connectedName');
     }
 
-    // Start heartbeat monitoring
+    // Start heartbeat monitoring (will reconnect if disconnected)
     _startHeartbeat();
   }
 
@@ -79,65 +90,104 @@ class PrinterService {
     _heartbeatTimer = null;
   }
 
-  /// Check connection and attempt reconnect if needed
+  /// Check connection status (passive - no commands sent to printer)
+  /// We don't aggressively reconnect to avoid confusing the printer's Bluetooth
   static Future<void> _checkConnectionAndReconnect() async {
-    final actualStatus = await PrintBluetoothThermal.connectionStatus;
+    try {
+      // Just check status - DON'T send any bytes to printer
+      // Sending keepalive commands can confuse some printer firmware
+      final actualStatus = await PrintBluetoothThermal.connectionStatus;
 
-    // Connection state changed
-    if (actualStatus != _isConnected) {
-      _isConnected = actualStatus;
-      _connectionStatusController.add(_isConnected);
-
-      // Lost connection - try to reconnect
-      if (!_isConnected && _connectedAddress != null) {
-        debugPrint('Printer connection lost, attempting reconnect...');
-        await _attemptReconnect();
+      if (actualStatus != _isConnected) {
+        _isConnected = actualStatus;
+        _connectionStatusController.add(_isConnected);
+        debugPrint('Printer status changed: ${_isConnected ? "connected" : "disconnected"}');
       }
-    }
 
-    // Send keepalive if connected (prevents idle disconnect)
-    if (_isConnected) {
-      await _sendKeepalive();
+      // Don't auto-reconnect aggressively - let user trigger reconnect
+      // or reconnect will happen automatically when printing
+    } catch (e) {
+      debugPrint('Status check error: $e');
     }
   }
 
-  /// Attempt to reconnect to the last connected printer
-  static Future<bool> _attemptReconnect() async {
-    if (_reconnectAttempts >= _maxReconnectAttempts) {
-      debugPrint('Max reconnect attempts reached');
-      _reconnectAttempts = 0;
+  // Track when connection was established to know if we need warmup delay
+  static DateTime? _lastConnectionTime;
+  static const int _connectionWarmupMs = 1000; // 1 second warmup after fresh connect
+
+  /// LOYVERSE-STYLE: Ensure connection before printing
+  /// Simple approach: check status, if not connected try to connect
+  /// DON'T send test bytes - some printers lock up when receiving unexpected commands
+  static Future<bool> _ensureFreshConnection() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedAddress = prefs.getString(_printerAddressKey);
+    final savedName = prefs.getString(_printerNameKey);
+
+    if (savedAddress == null || savedAddress.isEmpty) {
+      debugPrint('No saved printer to connect to');
       return false;
     }
 
-    _reconnectAttempts++;
-    debugPrint('Reconnect attempt $_reconnectAttempts/$_maxReconnectAttempts');
-
+    // Check if already connected - trust the status, don't send test bytes
     try {
-      // Try saved printer first
-      final success = await _tryReconnectSavedPrinter();
-      if (success) {
-        _reconnectAttempts = 0;
-        debugPrint('Reconnected successfully');
+      final currentStatus = await PrintBluetoothThermal.connectionStatus;
+      if (currentStatus) {
+        debugPrint('Printer already connected');
+        _isConnected = true;
+        _connectedAddress = savedAddress;
+        _connectedName = savedName;
+        _connectionStatusController.add(true);
+
+        // If recently connected, wait for warmup
+        if (_lastConnectionTime != null) {
+          final elapsed = DateTime.now().difference(_lastConnectionTime!).inMilliseconds;
+          if (elapsed < _connectionWarmupMs) {
+            final waitTime = _connectionWarmupMs - elapsed;
+            debugPrint('Waiting ${waitTime}ms for connection warmup...');
+            await Future.delayed(Duration(milliseconds: waitTime));
+          }
+        }
         return true;
       }
     } catch (e) {
-      debugPrint('Reconnect failed: $e');
+      debugPrint('Status check failed: $e');
     }
 
-    return false;
-  }
-
-  /// Send a keepalive command to prevent idle disconnect
-  static Future<void> _sendKeepalive() async {
+    // Not connected - try to connect (no aggressive disconnect first)
+    debugPrint('Connecting to $savedName ($savedAddress)...');
     try {
-      // Send empty status query (doesn't print anything)
-      // ESC v - Transmit printer status
-      await PrintBluetoothThermal.writeBytes([0x1B, 0x76]);
+      final result = await PrintBluetoothThermal.connect(
+        macPrinterAddress: savedAddress,
+      ).timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {
+          debugPrint('Connection timed out');
+          return false;
+        },
+      );
+
+      if (result) {
+        _connectedAddress = savedAddress;
+        _connectedName = savedName;
+        _isConnected = true;
+        _connectionStatusController.add(true);
+        _lastConnectionTime = DateTime.now();
+        debugPrint('Connected successfully - waiting for warmup...');
+
+        // IMPORTANT: Wait for Bluetooth data channel to be fully ready
+        await Future.delayed(const Duration(milliseconds: 1000));
+        return true;
+      } else {
+        debugPrint('Connection failed');
+        _isConnected = false;
+        _connectionStatusController.add(false);
+        return false;
+      }
     } catch (e) {
-      // Keepalive failed - connection may be dead
-      debugPrint('Keepalive failed: $e');
+      debugPrint('Connection error: $e');
       _isConnected = false;
       _connectionStatusController.add(false);
+      return false;
     }
   }
 
@@ -200,11 +250,7 @@ class PrinterService {
         _connectedAddress = device.macAdress;
         _connectedName = device.name;
         _isConnected = true;
-        _reconnectAttempts = 0;
         _connectionStatusController.add(true);
-
-        // Start heartbeat to maintain connection
-        _startHeartbeat();
 
         if (savePreference) {
           final prefs = await SharedPreferences.getInstance();
@@ -212,6 +258,13 @@ class PrinterService {
           await prefs.setString(_printerNameKey, device.name ?? '');
         }
 
+        // Small delay to let connection stabilize before starting heartbeat
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Start heartbeat to maintain connection
+        _startHeartbeat();
+
+        debugPrint('Connected to ${device.name} - heartbeat started');
         return true;
       }
     } catch (e) {
@@ -229,7 +282,6 @@ class PrinterService {
       _connectedAddress = null;
       _connectedName = null;
       _isConnected = false;
-      _reconnectAttempts = 0;
       _connectionStatusController.add(false);
     } catch (e) {
       debugPrint('Disconnect error: $e');
@@ -244,10 +296,18 @@ class PrinterService {
     await disconnect();
   }
 
-  /// Update connection status
+  /// Update connection status and attempt reconnection if disconnected
   static Future<void> updateConnectionStatus() async {
     _isConnected = await PrintBluetoothThermal.connectionStatus;
     _connectionStatusController.add(_isConnected);
+
+    // If not connected, try to reconnect to saved printer
+    if (!_isConnected) {
+      final reconnected = await _tryReconnectSavedPrinter();
+      if (reconnected) {
+        debugPrint('Printer auto-reconnected during status update');
+      }
+    }
   }
 
   /// Stream of scan results (returns paired devices for this package)
@@ -266,21 +326,48 @@ class PrinterService {
   }
 
   /// Print a POS transaction receipt
+  /// Uses Loyverse-style "connect-on-demand" for reliability
   static Future<bool> printReceipt(Map<String, dynamic> transaction) async {
-    // Update connection status first
-    await updateConnectionStatus();
-
-    if (!_isConnected) {
-      debugPrint('Printer not connected');
+    // LOYVERSE-STYLE: Always ensure fresh connection before printing
+    // This is more reliable than trying to maintain a persistent connection
+    final connected = await _ensureFreshConnection();
+    if (!connected) {
+      debugPrint('Could not establish connection to printer');
       return false;
     }
 
     try {
       final bytes = _buildReceiptBytes(transaction);
       final result = await PrintBluetoothThermal.writeBytes(bytes);
-      return result;
+
+      if (result) {
+        debugPrint('Print successful');
+        return true;
+      }
+
+      // First attempt failed - try once more with fresh connection
+      debugPrint('Print failed, retrying with fresh connection...');
+
+      // Force disconnect and reconnect
+      try {
+        await PrintBluetoothThermal.disconnect;
+        await Future.delayed(const Duration(milliseconds: 500));
+      } catch (_) {}
+
+      final reconnected = await _ensureFreshConnection();
+      if (reconnected) {
+        final retryResult = await PrintBluetoothThermal.writeBytes(bytes);
+        if (retryResult) {
+          debugPrint('Print successful on retry');
+        }
+        return retryResult;
+      }
+
+      return false;
     } catch (e) {
       debugPrint('Print error: $e');
+      _isConnected = false;
+      _connectionStatusController.add(false);
       return false;
     }
   }
@@ -461,10 +548,12 @@ class PrinterService {
   }
 
   /// Print a test receipt
+  /// Uses Loyverse-style "connect-on-demand" for reliability
   static Future<bool> printTestReceipt() async {
-    await updateConnectionStatus();
-
-    if (!_isConnected) {
+    // LOYVERSE-STYLE: Always ensure fresh connection before printing
+    final connected = await _ensureFreshConnection();
+    if (!connected) {
+      debugPrint('Could not establish connection to printer');
       return false;
     }
 
@@ -506,27 +595,89 @@ class PrinterService {
       bytes.addAll([0x1B, 0x64, 0x04]);
 
       final result = await PrintBluetoothThermal.writeBytes(bytes);
-      return result;
+
+      if (result) {
+        debugPrint('Test print successful');
+        return true;
+      }
+
+      // First attempt failed - try once more with fresh connection
+      debugPrint('Test print failed, retrying with fresh connection...');
+      try {
+        await PrintBluetoothThermal.disconnect;
+        await Future.delayed(const Duration(milliseconds: 500));
+      } catch (_) {}
+
+      final reconnected = await _ensureFreshConnection();
+      if (reconnected) {
+        final retryResult = await PrintBluetoothThermal.writeBytes(bytes);
+        return retryResult;
+      }
+
+      return false;
     } catch (e) {
       debugPrint('Test print error: $e');
+      _isConnected = false;
+      _connectionStatusController.add(false);
       return false;
     }
   }
 
   /// Open the cash drawer connected to the printer's RJ11 port
   static Future<bool> openCashDrawer({int pin = 0}) async {
-    await updateConnectionStatus();
-
-    if (!_isConnected) {
+    // LOYVERSE-STYLE: Ensure fresh connection before sending command
+    final connected = await _ensureFreshConnection();
+    if (!connected) {
       debugPrint('Printer not connected - cannot open cash drawer');
       return false;
     }
 
     try {
-      // ESC p m t1 t2 command
-      final List<int> command = [0x1B, 0x70, pin, 25, 250];
-      final result = await PrintBluetoothThermal.writeBytes(command);
-      debugPrint('Cash drawer command sent');
+      // Some printers ONLY process cash drawer when embedded in a print job
+      // So we send: Init + small print + cash drawer + feed
+      final List<int> command = [
+        // Initialize printer
+        0x1B, 0x40,       // ESC @ - Initialize printer
+
+        // Print a blank space (forces printer into print mode)
+        0x20,             // Space character
+        0x0A,             // Line feed
+
+        // Cash drawer kick pulse - try both pins with longer pulse
+        0x1B, 0x70,       // ESC p
+        pin,              // m: pin selector (0 or 1)
+        0x32,             // t1: 50 × 2ms = 100ms ON (longer pulse)
+        0xFF,             // t2: 255 × 2ms = 510ms OFF
+
+        // Try other pin too (some drawers wired differently)
+        0x1B, 0x70,       // ESC p again
+        pin == 0 ? 1 : 0, // Try other pin
+        0x32,             // t1
+        0xFF,             // t2
+
+        // Feed to ensure buffer is flushed
+        0x0A, 0x0A, 0x0A, // Multiple line feeds
+      ];
+
+      // Log exact bytes being sent (hex format)
+      final hexBytes = command.map((b) => '0x${b.toRadixString(16).padLeft(2, '0').toUpperCase()}').join(' ');
+      debugPrint('═══════════════════════════════════════');
+      debugPrint('CASH DRAWER (embedded in print, both pins)');
+      debugPrint('Bytes: $hexBytes');
+      debugPrint('Pin: $pin (also trying pin ${pin == 0 ? 1 : 0})');
+      debugPrint('═══════════════════════════════════════');
+
+      var result = await PrintBluetoothThermal.writeBytes(command);
+      debugPrint('writeBytes() returned: $result');
+
+      // Also try DLE DC4 command (alternative used by some printers)
+      if (result) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        final dleDc4 = [0x10, 0x14, 0x01, 0x00, 0x01];
+        final dleDc4Hex = dleDc4.map((b) => '0x${b.toRadixString(16).padLeft(2, '0').toUpperCase()}').join(' ');
+        debugPrint('Also sending DLE DC4: $dleDc4Hex');
+        await PrintBluetoothThermal.writeBytes(dleDc4);
+      }
 
       if (result) {
         // Mark drawer as open and start auto-close timer
@@ -548,38 +699,79 @@ class PrinterService {
 
   /// Print receipt and open cash drawer (for cash payments or cash-out transactions)
   static Future<bool> printReceiptAndOpenDrawer(Map<String, dynamic> transaction) async {
-    final printSuccess = await printReceipt(transaction);
-
-    // Open drawer for cash payments OR cash-out transactions (cash leaves drawer)
+    // Open drawer FIRST for cash payments OR cash-out transactions (cash leaves drawer)
     final isCashPayment = transaction['paymentMethod'] == 'cash';
     final hasCashOut = transaction['hasCashOut'] == true;
 
     if (isCashPayment || hasCashOut) {
-      if (!printSuccess) {
-        // Print failed — try sending drawer command directly without
-        // re-checking connection (the connection may still be alive even
-        // though the print reported failure due to no paper).
-        try {
-          final List<int> command = [0x1B, 0x70, 0, 25, 250];
-          final result = await PrintBluetoothThermal.writeBytes(command);
-          if (result) {
-            _isCashDrawerOpen = true;
-            _cashDrawerStatusController.add(true);
-            _cashDrawerTimer?.cancel();
-            _cashDrawerTimer = Timer(
-              const Duration(seconds: cashDrawerTimeoutSeconds),
-              markCashDrawerClosed,
-            );
-          }
-        } catch (_) {
-          debugPrint('Cash drawer fallback failed');
-        }
-      } else {
-        await openCashDrawer();
-      }
+      // Open drawer first so cashier can get cash ready
+      await openCashDrawer();
+      // Small delay to ensure drawer command is sent before printing starts
+      await Future.delayed(const Duration(milliseconds: 500));
     }
 
+    // Then print receipt
+    final printSuccess = await printReceipt(transaction);
+
     return printSuccess;
+  }
+
+  /// Test different cash drawer commands for debugging
+  /// Call this to try various command formats
+  static Future<void> testCashDrawerCommands() async {
+    final connected = await _ensureFreshConnection();
+    if (!connected) {
+      debugPrint('Not connected - cannot test');
+      return;
+    }
+
+    debugPrint('');
+    debugPrint('╔═══════════════════════════════════════╗');
+    debugPrint('║   CASH DRAWER COMMAND TEST            ║');
+    debugPrint('╚═══════════════════════════════════════╝');
+
+    // Test 1: With init + LF (like Loyverse might do)
+    debugPrint('\n[TEST 1] ESC @ + ESC p + LF (embedded in print job)');
+    var cmd = [0x1B, 0x40, 0x1B, 0x70, 0x00, 0x19, 0xFA, 0x0A];
+    debugPrint('Bytes: ${cmd.map((b) => '0x${b.toRadixString(16).toUpperCase()}').join(' ')}');
+    var result = await PrintBluetoothThermal.writeBytes(cmd);
+    debugPrint('Result: $result');
+    await Future.delayed(const Duration(seconds: 3));
+
+    // Test 2: Pin 1 with init
+    debugPrint('\n[TEST 2] ESC @ + ESC p Pin 1 + LF');
+    cmd = [0x1B, 0x40, 0x1B, 0x70, 0x01, 0x19, 0xFA, 0x0A];
+    debugPrint('Bytes: ${cmd.map((b) => '0x${b.toRadixString(16).toUpperCase()}').join(' ')}');
+    result = await PrintBluetoothThermal.writeBytes(cmd);
+    debugPrint('Result: $result');
+    await Future.delayed(const Duration(seconds: 3));
+
+    // Test 3: Just ESC p (standalone)
+    debugPrint('\n[TEST 3] Standalone ESC p');
+    cmd = [0x1B, 0x70, 0x00, 0x19, 0xFA];
+    debugPrint('Bytes: ${cmd.map((b) => '0x${b.toRadixString(16).toUpperCase()}').join(' ')}');
+    result = await PrintBluetoothThermal.writeBytes(cmd);
+    debugPrint('Result: $result');
+    await Future.delayed(const Duration(seconds: 3));
+
+    // Test 4: DLE DC4 (alternative command)
+    debugPrint('\n[TEST 4] DLE DC4 command');
+    cmd = [0x10, 0x14, 0x01, 0x00, 0x01];
+    debugPrint('Bytes: ${cmd.map((b) => '0x${b.toRadixString(16).toUpperCase()}').join(' ')}');
+    result = await PrintBluetoothThermal.writeBytes(cmd);
+    debugPrint('Result: $result');
+    await Future.delayed(const Duration(seconds: 3));
+
+    // Test 5: Longer timings
+    debugPrint('\n[TEST 5] Longer pulse (200ms ON, 500ms OFF)');
+    cmd = [0x1B, 0x40, 0x1B, 0x70, 0x00, 0x64, 0xFA, 0x0A];
+    debugPrint('Bytes: ${cmd.map((b) => '0x${b.toRadixString(16).toUpperCase()}').join(' ')}');
+    result = await PrintBluetoothThermal.writeBytes(cmd);
+    debugPrint('Result: $result');
+
+    debugPrint('\n═══════════════════════════════════════');
+    debugPrint('TEST COMPLETE - Did any test open the drawer?');
+    debugPrint('═══════════════════════════════════════');
   }
 
   /// Dispose resources

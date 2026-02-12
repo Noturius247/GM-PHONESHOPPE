@@ -18,9 +18,9 @@ dependencies:
   url_launcher: ^6.2.1
   http: ^1.1.0
   # Firebase packages
-  firebase_core: ^2.24.2
-  firebase_auth: ^4.17.0
-  firebase_database: ^10.4.0
+  firebase_core: ^4.4.0
+  firebase_auth: ^6.1.4
+  firebase_database: ^12.1.2
   # Camera and barcode scanning
   mobile_scanner: ^3.5.5
   permission_handler: ^11.1.0
@@ -39,9 +39,18 @@ dependencies:
   print_bluetooth_thermal: ^1.1.1
   # PDF label printing (Epson L805 inkjet via system print dialog)
   pdf: ^3.10.8
-  printing: ^5.12.0
+  printing: ^5.14.2
   qr_flutter: ^4.1.0
   audioplayers: ^6.1.0
+  # Keep screen awake (prevent sleep)
+  wakelock_plus: ^1.2.8
+  # Push notifications (works when app is closed)
+  onesignal_flutter: ^5.2.7
+  # Local notifications (works offline)
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+  # Charts for analytics
+  fl_chart: ^0.69.0
 
 dev_dependencies:
   flutter_test:

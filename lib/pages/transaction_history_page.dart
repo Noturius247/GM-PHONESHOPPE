@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../services/cache_service.dart';
 import 'ocr_scanner_page.dart';
+import '../utils/snackbar_utils.dart';
 
 /// Transaction History Page - Read-only view of all POS transactions
 /// Accessible by both users and admins
@@ -93,12 +94,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Using cached data. Error: $e'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackBarUtils.showWarning(context, 'Using cached data. Error: $e');
       }
     } finally {
       if (mounted) {
@@ -193,6 +189,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final isSlimPhone = screenWidth < 360;
     final isMobile = screenWidth < 600;
 
     return Container(
@@ -206,7 +203,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
       child: Column(
         children: [
           // Header
-          _buildHeader(isMobile),
+          _buildHeader(isMobile, isSlimPhone),
           // Filters
           _buildFilters(isMobile),
           // Transaction List
@@ -237,7 +234,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
     );
   }
 
-  Widget _buildHeader(bool isMobile) {
+  Widget _buildHeader(bool isMobile, bool isSlimPhone) {
     return Container(
       padding: EdgeInsets.all(isMobile ? 16 : 24),
       child: Column(
@@ -264,9 +261,10 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                       'Transaction History',
                       style: TextStyle(
                         color: _textPrimary,
-                        fontSize: isMobile ? 20 : 24,
+                        fontSize: isSlimPhone ? 16 : (isMobile ? 20 : 24),
                         fontWeight: FontWeight.bold,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       '${_filteredTransactions.length} transaction${_filteredTransactions.length == 1 ? '' : 's'}',
@@ -300,6 +298,7 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                   decoration: InputDecoration(
                     hintText: 'Search by staff, transaction ID, or customer...',
                     hintStyle: TextStyle(color: _textSecondary.withValues(alpha: 0.6)),
+                    hintMaxLines: 1,
                     prefixIcon: const Icon(Icons.search, color: _textSecondary),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
@@ -358,11 +357,13 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
   }
 
   Widget _buildFilterChip(String label, String value) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSlimPhone = screenWidth < 360;
     final isSelected = _selectedDateFilter == value;
     return GestureDetector(
       onTap: () => setState(() => _selectedDateFilter = value),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: isSlimPhone ? 12 : 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? _accentColor : _cardColor,
           borderRadius: BorderRadius.circular(20),
@@ -480,6 +481,8 @@ class _TransactionHistoryPageState extends State<TransactionHistoryPage> {
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                         const SizedBox(height: 4),
                         Row(

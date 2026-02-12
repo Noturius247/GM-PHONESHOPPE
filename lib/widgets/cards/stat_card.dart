@@ -116,6 +116,8 @@ class StatCard extends StatelessWidget {
               Text(
                 value,
                 style: AppTypography.displaySmall(color: AppColors.textPrimary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
 
               AppSpacing.vXs,
@@ -124,6 +126,8 @@ class StatCard extends StatelessWidget {
               Text(
                 title,
                 style: AppTypography.bodyMedium(color: AppColors.textSecondary),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
 
               // Subtitle (optional)

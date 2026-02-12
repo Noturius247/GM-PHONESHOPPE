@@ -214,15 +214,16 @@ class _PinEntryDialogState extends State<PinEntryDialog>
       padding = 28;
     } else {
       // Phone
-      dialogMaxWidth = 320;
-      keypadWidth = 240;
-      buttonHeight = maxButtonHeight.clamp(44, 56).toDouble();
-      fontSize = 22;
-      iconSize = 24;
-      dotSize = 20;
-      titleFontSize = 18;
-      subtitleFontSize = 13;
-      padding = 24;
+      final isSlimPhone = screenWidth < 360;
+      dialogMaxWidth = isSlimPhone ? screenWidth - 32 : 320;
+      keypadWidth = isSlimPhone ? screenWidth - 80 : 240;
+      buttonHeight = maxButtonHeight.clamp(40, 56).toDouble();
+      fontSize = isSlimPhone ? 20 : 22;
+      iconSize = isSlimPhone ? 22 : 24;
+      dotSize = isSlimPhone ? 18 : 20;
+      titleFontSize = isSlimPhone ? 16 : 18;
+      subtitleFontSize = isSlimPhone ? 12 : 13;
+      padding = isSlimPhone ? 16 : 24;
     }
 
     Widget keypadRow(List<Widget> children) => Row(children: children);
@@ -359,10 +360,11 @@ class _PinEntryDialogState extends State<PinEntryDialog>
     }
 
     // Portrait / phone: vertical layout with scroll safety
+    final phoneHorizontalInset = screenWidth < 360 ? 16.0 : 40.0;
     return Dialog(
       backgroundColor: _bgColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+      insetPadding: EdgeInsets.symmetric(horizontal: phoneHorizontalInset, vertical: 24),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: dialogMaxWidth),
         child: SingleChildScrollView(

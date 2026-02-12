@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../services/printer_service.dart';
+import '../services/native_printer_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class PrinterSettingsDialog extends StatefulWidget {
   const PrinterSettingsDialog({super.key});
@@ -17,26 +18,22 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
   static const Color _textPrimary = Color(0xFFEAEAEA);
   static const Color _textSecondary = Color(0xFF8B8B8B);
 
-  List<BluetoothInfo> _devices = [];
+  List<Map<String, String>> _devices = [];
   bool _isScanning = false;
   bool _isConnecting = false;
   bool _isPrinting = false;
-  StreamSubscription<List<BluetoothInfo>>? _scanSubscription;
   StreamSubscription<bool>? _connectionSubscription;
   bool _isConnected = false;
-  BluetoothInfo? _connectedDevice;
 
   @override
   void initState() {
     super.initState();
-    _isConnected = PrinterService.isConnected;
-    _connectedDevice = PrinterService.connectedDevice;
+    _isConnected = NativePrinterService.isConnected;
     _connectionSubscription =
-        PrinterService.connectionStatusStream.listen((connected) {
+        NativePrinterService.connectionStatusStream.listen((connected) {
       if (mounted) {
         setState(() {
           _isConnected = connected;
-          _connectedDevice = PrinterService.connectedDevice;
         });
       }
     });
@@ -44,9 +41,7 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
 
   @override
   void dispose() {
-    _scanSubscription?.cancel();
     _connectionSubscription?.cancel();
-    PrinterService.stopScan();
     super.dispose();
   }
 
@@ -56,27 +51,21 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
 
     if (connectStatus.isDenied || scanStatus.isDenied) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bluetooth permissions are required to find printers'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackBarUtils.showWarning(context, 'Bluetooth permissions are required to find printers');
       }
       return false;
     }
 
     if (connectStatus.isPermanentlyDenied || scanStatus.isPermanentlyDenied) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Bluetooth permissions denied. Please enable in Settings.'),
-            backgroundColor: Colors.red,
-            action: SnackBarAction(
-              label: 'Open Settings',
-              textColor: Colors.white,
-              onPressed: () => openAppSettings(),
-            ),
+        SnackBarUtils.showTopSnackBar(
+          context,
+          message: 'Bluetooth permissions denied. Please enable in Settings.',
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Open Settings',
+            textColor: Colors.white,
+            onPressed: () => openAppSettings(),
           ),
         );
       }
@@ -91,28 +80,18 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
     final hasPermissions = await _requestBluetoothPermissions();
     if (!hasPermissions) return;
 
-    final isAvailable = await PrinterService.isBluetoothAvailable();
+    final isAvailable = await NativePrinterService.isBluetoothAvailable();
     if (!isAvailable) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bluetooth is not available on this device'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackBarUtils.showError(context, 'Bluetooth is not available on this device');
       }
       return;
     }
 
-    final isOn = await PrinterService.isBluetoothOn();
+    final isOn = await NativePrinterService.isBluetoothEnabled();
     if (!isOn) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please turn on Bluetooth'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackBarUtils.showWarning(context, 'Please turn on Bluetooth');
       }
       return;
     }
@@ -122,8 +101,8 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
       _devices = [];
     });
 
-    // Get paired devices (this package uses paired devices instead of scanning)
-    final devices = await PrinterService.getPairedDevices();
+    // Get paired devices
+    final devices = await NativePrinterService.getPairedDevices();
 
     if (mounted) {
       setState(() {
@@ -133,64 +112,56 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
     }
   }
 
-  Future<void> _connectToDevice(BluetoothInfo device) async {
+  Future<void> _connectToDevice(Map<String, String> device) async {
     setState(() => _isConnecting = true);
 
-    final success = await PrinterService.connectToDevice(device);
+    final address = device['address'] ?? '';
+    final name = device['name'] ?? 'Unknown';
+    final success = await NativePrinterService.connect(address, name: name);
 
     if (mounted) {
       setState(() => _isConnecting = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? 'Connected to ${device.name}'
-                : 'Failed to connect to ${device.name}',
-          ),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'Connected to $name');
+      } else {
+        SnackBarUtils.showError(context, 'Failed to connect to $name');
+      }
     }
   }
 
   Future<void> _disconnect() async {
-    await PrinterService.disconnect();
+    await NativePrinterService.disconnect();
   }
 
   Future<void> _forgetPrinter() async {
-    await PrinterService.forgetSavedPrinter();
+    await NativePrinterService.forgetSavedPrinter();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Printer forgotten'),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      SnackBarUtils.showWarning(context, 'Printer forgotten');
     }
   }
 
   Future<void> _printTest() async {
     setState(() => _isPrinting = true);
 
-    final success = await PrinterService.printTestReceipt();
+    final success = await NativePrinterService.printTestReceipt();
 
     if (mounted) {
       setState(() => _isPrinting = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success ? 'Test receipt printed!' : 'Failed to print test receipt',
-          ),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'Test receipt printed!');
+      } else {
+        SnackBarUtils.showError(context, 'Failed to print test receipt');
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final connectedName = NativePrinterService.connectedName;
+    final connectedAddress = NativePrinterService.connectedAddress;
+
     return AlertDialog(
       backgroundColor: _cardColor,
       title: Row(
@@ -204,7 +175,9 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
         ],
       ),
       content: SizedBox(
-        width: 400,
+        width: MediaQuery.of(context).size.width < 400
+            ? MediaQuery.of(context).size.width * 0.85
+            : 400,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -244,10 +217,10 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (_isConnected && _connectedDevice != null)
+                          if (_isConnected && connectedName != null)
                             Text(
-                              _connectedDevice!.name ?? 'Unknown Device',
-                              style: TextStyle(
+                              connectedName,
+                              style: const TextStyle(
                                 color: _textSecondary,
                                 fontSize: 12,
                               ),
@@ -342,7 +315,7 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Make sure your T58W printer is powered on',
+                                'Make sure your printer is paired and powered on',
                                 style: TextStyle(
                                   color: _textSecondary,
                                   fontSize: 11,
@@ -357,8 +330,10 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
                         itemCount: _devices.length,
                         itemBuilder: (context, index) {
                           final device = _devices[index];
+                          final deviceAddress = device['address'] ?? '';
+                          final deviceName = device['name'] ?? 'Unknown';
                           final isCurrentDevice =
-                              _connectedDevice?.macAdress == device.macAdress;
+                              connectedAddress == deviceAddress;
 
                           return ListTile(
                             dense: true,
@@ -369,7 +344,7 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
                                   : _textSecondary,
                             ),
                             title: Text(
-                              device.name,
+                              deviceName,
                               style: TextStyle(
                                 color: _textPrimary,
                                 fontWeight: isCurrentDevice
@@ -378,8 +353,8 @@ class _PrinterSettingsDialogState extends State<PrinterSettingsDialog> {
                               ),
                             ),
                             subtitle: Text(
-                              device.macAdress,
-                              style: TextStyle(
+                              deviceAddress,
+                              style: const TextStyle(
                                 color: _textSecondary,
                                 fontSize: 11,
                               ),
@@ -490,8 +465,8 @@ class _PrinterStatusButtonState extends State<PrinterStatusButton> {
   @override
   void initState() {
     super.initState();
-    _isConnected = PrinterService.isConnected;
-    _subscription = PrinterService.connectionStatusStream.listen((connected) {
+    _isConnected = NativePrinterService.isConnected;
+    _subscription = NativePrinterService.connectionStatusStream.listen((connected) {
       if (mounted) {
         setState(() => _isConnected = connected);
       }

@@ -1,15 +1,21 @@
 import 'package:firebase_database/firebase_database.dart';
+import 'package:intl/intl.dart';
 import 'cache_service.dart';
 
 class POSSettingsService {
   static final DatabaseReference _settingsRef =
       FirebaseDatabase.instance.ref('pos_settings');
+  static final DatabaseReference _balanceHistoryRef =
+      FirebaseDatabase.instance.ref('cash_balance_history');
+  static final DatabaseReference _cashAdjustmentsRef =
+      FirebaseDatabase.instance.ref('cash_adjustments');
 
   // Default settings
   static const Map<String, dynamic> _defaultSettings = {
     'vatEnabled': true,
     'vatRate': 12.0, // 12% VAT
     'vatInclusive': true, // VAT is included in selling price
+    'cashDrawerOpeningBalance': 0.0, // Opening balance for cash drawer
     // Sort settings for services (field_direction format)
     'sortCignal': 'name_asc',
     'sortSky': 'name_asc',
@@ -125,6 +131,17 @@ class POSSettingsService {
     return await updateSetting('vatInclusive', inclusive);
   }
 
+  // Get cash drawer opening balance
+  static Future<double> getCashDrawerOpeningBalance() async {
+    final balance = await getSetting<num>('cashDrawerOpeningBalance', 0.0);
+    return balance.toDouble();
+  }
+
+  // Set cash drawer opening balance
+  static Future<bool> setCashDrawerOpeningBalance(double balance) async {
+    return await updateSetting('cashDrawerOpeningBalance', balance);
+  }
+
   // Get sort setting for a service
   static Future<String> getSortSetting(String service) async {
     final key = 'sort${service[0].toUpperCase()}${service.substring(1)}';
@@ -185,5 +202,306 @@ class POSSettingsService {
     });
 
     return sorted;
+  }
+
+  // ============================================
+  // CASH BALANCE HISTORY METHODS
+  // ============================================
+
+  static final DateFormat _dateFormat = DateFormat('yyyy-MM-dd');
+
+  // Get date key for a given DateTime
+  static String _getDateKey(DateTime date) {
+    return _dateFormat.format(date);
+  }
+
+  // Save daily balance record (called when "Close Day" is pressed)
+  static Future<bool> saveDailyBalance({
+    required DateTime date,
+    required double openingBalance,
+    required double closingBalance,
+    required double cashSales,
+    required double cashIn,
+    required double cashOut,
+    required double adjustments,
+    String? notes,
+  }) async {
+    try {
+      final dateKey = _getDateKey(date);
+      await _balanceHistoryRef.child(dateKey).set({
+        'date': dateKey,
+        'openingBalance': openingBalance,
+        'closingBalance': closingBalance,
+        'cashSales': cashSales,
+        'cashIn': cashIn,
+        'cashOut': cashOut,
+        'adjustments': adjustments,
+        'notes': notes ?? '',
+        'closedAt': DateTime.now().toIso8601String(),
+        'status': 'closed',
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Get daily balance for a specific date
+  static Future<Map<String, dynamic>?> getDailyBalance(DateTime date) async {
+    try {
+      final dateKey = _getDateKey(date);
+      final snapshot = await _balanceHistoryRef.child(dateKey).get();
+      if (snapshot.exists) {
+        return Map<String, dynamic>.from(snapshot.value as Map);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Check if a day has been started (opening balance locked)
+  static Future<bool> isDayStarted(DateTime date) async {
+    try {
+      final dateKey = _getDateKey(date);
+      final snapshot = await _balanceHistoryRef.child(dateKey).child('status').get();
+      if (snapshot.exists) {
+        final status = snapshot.value as String;
+        return status == 'started' || status == 'closed';
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Check if a day has been closed
+  static Future<bool> isDayClosed(DateTime date) async {
+    try {
+      final dateKey = _getDateKey(date);
+      final snapshot = await _balanceHistoryRef.child(dateKey).child('status').get();
+      if (snapshot.exists) {
+        return snapshot.value == 'closed';
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Start the day (lock opening balance)
+  static Future<bool> startDay({
+    required DateTime date,
+    required double openingBalance,
+  }) async {
+    try {
+      final dateKey = _getDateKey(date);
+      await _balanceHistoryRef.child(dateKey).set({
+        'date': dateKey,
+        'openingBalance': openingBalance,
+        'status': 'started',
+        'startedAt': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Get the opening balance (float) for a specific date
+  // - For past dates: Use saved history (remembers what float was set that day)
+  // - For today/future: Use current Settings value
+  static Future<double> getOpeningBalanceForDate(DateTime date) async {
+    final today = DateTime.now();
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final dateOnly = DateTime(date.year, date.month, date.day);
+
+    // For today or future, use Settings value
+    if (!dateOnly.isBefore(todayOnly)) {
+      return await getCashDrawerOpeningBalance();
+    }
+
+    // For past dates, check history first
+    final savedBalance = await getDailyBalance(date);
+    if (savedBalance != null && savedBalance['openingBalance'] != null) {
+      return (savedBalance['openingBalance'] as num).toDouble();
+    }
+
+    // If no history for that day, fall back to Settings (legacy data)
+    return await getCashDrawerOpeningBalance();
+  }
+
+  // Save daily float to history (called automatically when transactions exist)
+  static Future<bool> saveDailyFloat(DateTime date, double openingBalance) async {
+    try {
+      final dateKey = _getDateKey(date);
+
+      // Check if already saved
+      final existing = await _balanceHistoryRef.child(dateKey).get();
+      if (existing.exists) {
+        // Already has a record, don't overwrite
+        return true;
+      }
+
+      // Save the float for this day
+      await _balanceHistoryRef.child(dateKey).set({
+        'date': dateKey,
+        'openingBalance': openingBalance,
+        'savedAt': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Get the opening balance for a period
+  // For daily: Get that day's float
+  // For weekly/monthly/yearly: Get first day's float (since each day resets)
+  static Future<double> getPeriodOpeningBalance({
+    required String period,
+    required DateTime selectedDate,
+  }) async {
+    // For all periods, we use the selected date's float
+    // (Weekly/monthly/yearly show totals, the float is just for reference)
+    return await getOpeningBalanceForDate(selectedDate);
+  }
+
+  // Get balance history for a date range
+  static Future<List<Map<String, dynamic>>> getBalanceHistory({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    try {
+      final startKey = _getDateKey(startDate);
+      final endKey = _getDateKey(endDate);
+
+      final snapshot = await _balanceHistoryRef
+          .orderByKey()
+          .startAt(startKey)
+          .endAt(endKey)
+          .get();
+
+      if (snapshot.exists) {
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
+        return data.entries
+            .map((e) => Map<String, dynamic>.from(e.value as Map))
+            .toList()
+          ..sort((a, b) => (a['date'] as String).compareTo(b['date'] as String));
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ============================================
+  // CASH ADJUSTMENT METHODS
+  // ============================================
+
+  // Record a cash adjustment (for mid-day corrections)
+  static Future<bool> recordCashAdjustment({
+    required DateTime date,
+    required double amount, // positive for adding, negative for removing
+    required String reason,
+    String? recordedBy,
+  }) async {
+    try {
+      final dateKey = _getDateKey(date);
+      final adjustmentRef = _cashAdjustmentsRef.child(dateKey).push();
+
+      await adjustmentRef.set({
+        'date': dateKey,
+        'amount': amount,
+        'reason': reason,
+        'recordedBy': recordedBy ?? 'Unknown',
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Get all cash adjustments for a specific date
+  static Future<List<Map<String, dynamic>>> getCashAdjustments(DateTime date) async {
+    try {
+      final dateKey = _getDateKey(date);
+      final snapshot = await _cashAdjustmentsRef.child(dateKey).get();
+
+      if (snapshot.exists) {
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
+        return data.entries
+            .map((e) => {
+                  ...Map<String, dynamic>.from(e.value as Map),
+                  'id': e.key,
+                })
+            .toList()
+          ..sort((a, b) => (a['timestamp'] as String).compareTo(b['timestamp'] as String));
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Get total adjustments for a date
+  static Future<double> getTotalAdjustments(DateTime date) async {
+    final adjustments = await getCashAdjustments(date);
+    return adjustments.fold<double>(
+      0.0,
+      (sum, adj) => sum + ((adj['amount'] as num?)?.toDouble() ?? 0.0),
+    );
+  }
+
+  // Get total adjustments for a date range
+  static Future<double> getTotalAdjustmentsForRange({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    double total = 0.0;
+    DateTime current = startDate;
+
+    while (!current.isAfter(endDate)) {
+      total += await getTotalAdjustments(current);
+      current = current.add(const Duration(days: 1));
+    }
+
+    return total;
+  }
+
+  // Get the last closed day's closing balance (for auto-populating next day's opening)
+  static Future<double?> getLastClosingBalance() async {
+    try {
+      final snapshot = await _balanceHistoryRef
+          .orderByKey()
+          .limitToLast(1)
+          .get();
+
+      if (snapshot.exists) {
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
+        final lastEntry = data.values.first as Map;
+        if (lastEntry['status'] == 'closed' && lastEntry['closingBalance'] != null) {
+          return (lastEntry['closingBalance'] as num).toDouble();
+        }
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Get day status for a date
+  static Future<String> getDayStatus(DateTime date) async {
+    try {
+      final dateKey = _getDateKey(date);
+      final snapshot = await _balanceHistoryRef.child(dateKey).child('status').get();
+      if (snapshot.exists) {
+        return snapshot.value as String;
+      }
+      return 'not_started';
+    } catch (e) {
+      return 'not_started';
+    }
   }
 }

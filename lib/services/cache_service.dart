@@ -17,6 +17,7 @@ class CacheService {
   static const String _posItemRequestsBoxName = 'pos_item_requests_cache';
   static const String _staffPinsBoxName = 'staff_pins_cache';
   static const String _syncMetadataBoxName = 'sync_metadata';
+  static const String _pendingOperationsBoxName = 'pending_operations_queue';
 
   static Box? _inventoryBox;
   static Box? _customersBox;
@@ -30,6 +31,7 @@ class CacheService {
   static Box? _posItemRequestsBox;
   static Box? _staffPinsBox;
   static Box? _syncMetadataBox;
+  static Box? _pendingOperationsBox;
 
   static bool _isInitialized = false;
 
@@ -51,6 +53,7 @@ class CacheService {
     _posItemRequestsBox = await Hive.openBox(_posItemRequestsBoxName);
     _staffPinsBox = await Hive.openBox(_staffPinsBoxName);
     _syncMetadataBox = await Hive.openBox(_syncMetadataBoxName);
+    _pendingOperationsBox = await Hive.openBox(_pendingOperationsBoxName);
 
     _isInitialized = true;
     print('CacheService initialized');
@@ -543,6 +546,40 @@ class CacheService {
     }
   }
 
+  /// Get failed transactions that need retry
+  static Future<List<Map<String, dynamic>>> getFailedTransactions() async {
+    if (_pendingTransactionsBox == null) await initialize();
+
+    final List<Map<String, dynamic>> failed = [];
+    for (var key in _pendingTransactionsBox!.keys) {
+      final data = _pendingTransactionsBox!.get(key);
+      if (data != null) {
+        final transaction = Map<String, dynamic>.from(data as Map);
+        if (transaction['syncStatus'] == 'failed') {
+          failed.add(transaction);
+        }
+      }
+    }
+    return failed;
+  }
+
+  /// Reset failed transactions to pending for retry
+  static Future<void> resetFailedTransactionsForRetry() async {
+    if (_pendingTransactionsBox == null) await initialize();
+
+    for (var key in _pendingTransactionsBox!.keys) {
+      final data = _pendingTransactionsBox!.get(key);
+      if (data != null) {
+        final transaction = Map<String, dynamic>.from(data as Map);
+        if (transaction['syncStatus'] == 'failed') {
+          transaction['syncStatus'] = 'pending';
+          transaction['retryCount'] = (transaction['retryCount'] ?? 0) + 1;
+          await _pendingTransactionsBox!.put(key, transaction);
+        }
+      }
+    }
+  }
+
   // ==================== POS BASKETS CACHE ====================
 
   /// Save all POS baskets to local cache (batch operation)
@@ -571,6 +608,50 @@ class CacheService {
     final key = basket['firebaseKey'] as String? ?? basket['id'] as String?;
     if (key != null) {
       await _posBasketsBox!.put(key, Map<String, dynamic>.from(basket));
+    }
+  }
+
+  /// Save a pending POS basket that needs to sync to Firebase
+  static Future<void> savePendingPosBasket(Map<String, dynamic> basket) async {
+    if (_posBasketsBox == null) await initialize();
+
+    final key = basket['firebaseKey'] as String? ?? basket['id'] as String?;
+    if (key != null) {
+      final pendingBasket = Map<String, dynamic>.from(basket);
+      pendingBasket['_needsSync'] = true;
+      pendingBasket['_createdOfflineAt'] = DateTime.now().toIso8601String();
+      await _posBasketsBox!.put(key, pendingBasket);
+      print('Saved pending basket: $key');
+    }
+  }
+
+  /// Get all baskets that need to sync to Firebase
+  static Future<List<Map<String, dynamic>>> getPendingPosBaskets() async {
+    if (_posBasketsBox == null) await initialize();
+
+    final List<Map<String, dynamic>> pending = [];
+    for (var key in _posBasketsBox!.keys) {
+      final data = _posBasketsBox!.get(key);
+      if (data != null) {
+        final basket = Map<String, dynamic>.from(data as Map);
+        if (basket['_needsSync'] == true) {
+          pending.add(basket);
+        }
+      }
+    }
+    return pending;
+  }
+
+  /// Mark a basket as synced (remove pending flag)
+  static Future<void> markPosBasketSynced(String basketKey) async {
+    if (_posBasketsBox == null) await initialize();
+
+    final data = _posBasketsBox!.get(basketKey);
+    if (data != null) {
+      final basket = Map<String, dynamic>.from(data as Map);
+      basket.remove('_needsSync');
+      basket.remove('_createdOfflineAt');
+      await _posBasketsBox!.put(basketKey, basket);
     }
   }
 
@@ -634,6 +715,49 @@ class CacheService {
     }
   }
 
+  /// Save a pending POS item request that needs to sync to Firebase
+  static Future<void> savePendingPosItemRequest(Map<String, dynamic> request) async {
+    if (_posItemRequestsBox == null) await initialize();
+
+    final id = request['id'] as String?;
+    if (id != null) {
+      final pendingRequest = Map<String, dynamic>.from(request);
+      pendingRequest['_needsSync'] = true;
+      pendingRequest['_createdOfflineAt'] = DateTime.now().toIso8601String();
+      await _posItemRequestsBox!.put(id, pendingRequest);
+    }
+  }
+
+  /// Get all item requests that need to sync to Firebase
+  static Future<List<Map<String, dynamic>>> getPendingPosItemRequests() async {
+    if (_posItemRequestsBox == null) await initialize();
+
+    final List<Map<String, dynamic>> pending = [];
+    for (var key in _posItemRequestsBox!.keys) {
+      final data = _posItemRequestsBox!.get(key);
+      if (data != null) {
+        final request = Map<String, dynamic>.from(data as Map);
+        if (request['_needsSync'] == true) {
+          pending.add(request);
+        }
+      }
+    }
+    return pending;
+  }
+
+  /// Mark an item request as synced
+  static Future<void> markPosItemRequestSynced(String requestId) async {
+    if (_posItemRequestsBox == null) await initialize();
+
+    final data = _posItemRequestsBox!.get(requestId);
+    if (data != null) {
+      final request = Map<String, dynamic>.from(data as Map);
+      request.remove('_needsSync');
+      request.remove('_createdOfflineAt');
+      await _posItemRequestsBox!.put(requestId, request);
+    }
+  }
+
   /// Get all POS item requests from local cache
   static Future<List<Map<String, dynamic>>> getPosItemRequests({String? status}) async {
     if (_posItemRequestsBox == null) await initialize();
@@ -691,6 +815,123 @@ class CacheService {
     return _staffPinsBox!.isNotEmpty;
   }
 
+  // ==================== PENDING OPERATIONS QUEUE ====================
+  // Generic queue for all pending Firebase operations (inventory, customers, suggestions, etc.)
+
+  /// Save a pending operation to the queue
+  /// operationType: 'inventory_add', 'inventory_update', 'inventory_delete',
+  ///                'customer_add', 'customer_update', 'customer_delete',
+  ///                'suggestion_submit', 'suggestion_approve', 'suggestion_reject', 'suggestion_delete',
+  ///                'gsat_add', 'gsat_update', 'gsat_delete',
+  ///                'invitation_add', 'stock_add', 'stock_remove', 'stock_set', etc.
+  static Future<String> savePendingOperation({
+    required String operationType,
+    required Map<String, dynamic> data,
+    String? entityId,
+  }) async {
+    if (_pendingOperationsBox == null) await initialize();
+
+    final id = '${operationType}_${DateTime.now().millisecondsSinceEpoch}';
+    final pendingOp = {
+      'id': id,
+      'operationType': operationType,
+      'data': data,
+      'entityId': entityId,
+      'status': 'pending',
+      'createdAt': DateTime.now().toIso8601String(),
+      'retryCount': 0,
+    };
+
+    await _pendingOperationsBox!.put(id, pendingOp);
+    print('Saved pending operation: $operationType ($id)');
+    return id;
+  }
+
+  /// Get all pending operations
+  static Future<List<Map<String, dynamic>>> getPendingOperations() async {
+    if (_pendingOperationsBox == null) await initialize();
+
+    final List<Map<String, dynamic>> operations = [];
+    for (var key in _pendingOperationsBox!.keys) {
+      final data = _pendingOperationsBox!.get(key);
+      if (data != null) {
+        operations.add(Map<String, dynamic>.from(data as Map));
+      }
+    }
+    return operations;
+  }
+
+  /// Get pending operations by type
+  static Future<List<Map<String, dynamic>>> getPendingOperationsByType(String operationType) async {
+    final all = await getPendingOperations();
+    return all.where((op) =>
+      op['operationType'] == operationType && op['status'] == 'pending'
+    ).toList();
+  }
+
+  /// Get pending operations by type prefix (e.g., 'inventory_' gets all inventory operations)
+  static Future<List<Map<String, dynamic>>> getPendingOperationsByPrefix(String prefix) async {
+    final all = await getPendingOperations();
+    return all.where((op) =>
+      (op['operationType'] as String).startsWith(prefix) && op['status'] == 'pending'
+    ).toList();
+  }
+
+  /// Get count of all pending operations
+  static Future<int> getPendingOperationsCount() async {
+    final all = await getPendingOperations();
+    return all.where((op) => op['status'] == 'pending').length;
+  }
+
+  /// Remove a pending operation (after successful sync)
+  static Future<void> removePendingOperation(String operationId) async {
+    if (_pendingOperationsBox == null) await initialize();
+    await _pendingOperationsBox!.delete(operationId);
+    print('Removed pending operation: $operationId');
+  }
+
+  /// Update status of a pending operation
+  static Future<void> updatePendingOperationStatus(String operationId, String status, {String? error}) async {
+    if (_pendingOperationsBox == null) await initialize();
+
+    final data = _pendingOperationsBox!.get(operationId);
+    if (data != null) {
+      final operation = Map<String, dynamic>.from(data as Map);
+      operation['status'] = status;
+      if (error != null) {
+        operation['error'] = error;
+      }
+      operation['lastAttempt'] = DateTime.now().toIso8601String();
+      if (status == 'failed') {
+        operation['retryCount'] = (operation['retryCount'] ?? 0) + 1;
+      }
+      await _pendingOperationsBox!.put(operationId, operation);
+    }
+  }
+
+  /// Reset all failed operations to pending for retry
+  static Future<void> resetFailedOperationsForRetry() async {
+    if (_pendingOperationsBox == null) await initialize();
+
+    for (var key in _pendingOperationsBox!.keys) {
+      final data = _pendingOperationsBox!.get(key);
+      if (data != null) {
+        final operation = Map<String, dynamic>.from(data as Map);
+        if (operation['status'] == 'failed') {
+          operation['status'] = 'pending';
+          await _pendingOperationsBox!.put(key, operation);
+        }
+      }
+    }
+  }
+
+  /// Check if there are any pending operations
+  static Future<bool> hasPendingOperations() async {
+    if (_pendingOperationsBox == null) await initialize();
+    final all = await getPendingOperations();
+    return all.any((op) => op['status'] == 'pending');
+  }
+
   // ==================== SYNC METADATA ====================
 
   /// Set last sync timestamp for a data type
@@ -728,8 +969,8 @@ class CacheService {
 
   // ==================== UTILITIES ====================
 
-  /// Clear all cached data (excluding pending transactions to prevent data loss)
-  static Future<void> clearAllCache({bool includePendingTransactions = false}) async {
+  /// Clear all cached data (excluding pending data to prevent data loss)
+  static Future<void> clearAllCache({bool includePendingData = false}) async {
     if (_inventoryBox != null) await _inventoryBox!.clear();
     if (_customersBox != null) await _customersBox!.clear();
     if (_gsatActivationsBox != null) await _gsatActivationsBox!.clear();
@@ -740,8 +981,9 @@ class CacheService {
     if (_posBasketsBox != null) await _posBasketsBox!.clear();
     if (_posItemRequestsBox != null) await _posItemRequestsBox!.clear();
     if (_staffPinsBox != null) await _staffPinsBox!.clear();
-    if (includePendingTransactions && _pendingTransactionsBox != null) {
-      await _pendingTransactionsBox!.clear();
+    if (includePendingData) {
+      if (_pendingTransactionsBox != null) await _pendingTransactionsBox!.clear();
+      if (_pendingOperationsBox != null) await _pendingOperationsBox!.clear();
     }
     if (_syncMetadataBox != null) await _syncMetadataBox!.clear();
     print('All cache cleared');
@@ -759,6 +1001,7 @@ class CacheService {
       'inventoryHistoryCount': _inventoryHistoryBox?.length ?? 0,
       'posTransactionsCount': _posTransactionsBox?.length ?? 0,
       'pendingTransactionsCount': _pendingTransactionsBox?.length ?? 0,
+      'pendingOperationsCount': _pendingOperationsBox?.length ?? 0,
       'posBasketsCount': _posBasketsBox?.length ?? 0,
       'posItemRequestsCount': _posItemRequestsBox?.length ?? 0,
       'staffPinsCount': _staffPinsBox?.length ?? 0,
@@ -778,6 +1021,7 @@ class CacheService {
     await _inventoryHistoryBox?.close();
     await _posTransactionsBox?.close();
     await _pendingTransactionsBox?.close();
+    await _pendingOperationsBox?.close();
     await _posBasketsBox?.close();
     await _posItemRequestsBox?.close();
     await _staffPinsBox?.close();

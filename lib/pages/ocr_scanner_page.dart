@@ -71,7 +71,19 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   final TextRecognizer _textRecognizer = TextRecognizer();
-  final BarcodeScanner _barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode]);
+  final BarcodeScanner _barcodeScanner = BarcodeScanner(formats: [
+    BarcodeFormat.qrCode,
+    BarcodeFormat.code128,
+    BarcodeFormat.code39,
+    BarcodeFormat.code93,
+    BarcodeFormat.ean13,
+    BarcodeFormat.ean8,
+    BarcodeFormat.upca,
+    BarcodeFormat.upce,
+    BarcodeFormat.itf,
+    BarcodeFormat.codabar,
+    BarcodeFormat.dataMatrix,
+  ]);
   final ImagePicker _picker = ImagePicker();
 
   bool _isCameraInitialized = false;
@@ -300,15 +312,22 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
         _pinController.text = extractedData.pin ?? '';
       });
 
+      // For inventory_serial mode: prioritize QR value as serial when available
+      if (widget.serviceType == 'inventory_serial' && qrSerials.isNotEmpty) {
+        extractedData.serialNumber = qrSerials.first;
+        _serialController.text = qrSerials.first;
+      }
+
       // Auto-return/callback for inventory_serial mode if a serial was found
-      if (widget.serviceType == 'inventory_serial' && extractedData.serialNumber != null && extractedData.serialNumber!.isNotEmpty) {
+      final autoReturnSerial = extractedData.serialNumber ?? (allSerials.isNotEmpty ? allSerials.first : null);
+      if (widget.serviceType == 'inventory_serial' && autoReturnSerial != null && autoReturnSerial.isNotEmpty) {
         if (widget.onInventoryScan != null) {
           // Continuous mode — call callback and reset for next scan
-          widget.onInventoryScan!(extractedData.serialNumber!);
+          widget.onInventoryScan!(autoReturnSerial);
           if (mounted) _retake();
           return;
         } else if (mounted) {
-          Navigator.pop(context, OcrExtractedData(serialNumber: extractedData.serialNumber));
+          Navigator.pop(context, OcrExtractedData(serialNumber: autoReturnSerial));
           return;
         }
       }
@@ -493,6 +512,15 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
       }
     }
 
+    // For inventory_serial mode: if still no serial, use any detected number as serial
+    if (widget.serviceType == 'inventory_serial' && data.serialNumber == null) {
+      final numberPattern = RegExp(r'\d{3,}');
+      final match = numberPattern.firstMatch(text);
+      if (match != null) {
+        data.serialNumber = match.group(0);
+      }
+    }
+
     return data;
   }
 
@@ -667,7 +695,7 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
       }
 
       final alphanumericPattern =
-          RegExp(r'^[A-Z0-9]{6,20}$', caseSensitive: false);
+          RegExp(r'^[A-Z0-9]{3,20}$', caseSensitive: false);
       if (alphanumericPattern.hasMatch(trimmed)) {
         if (!serials.contains(trimmed)) {
           serials.add(trimmed);
@@ -679,7 +707,7 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
       final matches = serialPattern.allMatches(trimmed);
       for (final match in matches) {
         final found = match.group(0)!;
-        if (!serials.contains(found) && found.length >= 6) {
+        if (!serials.contains(found) && found.length >= 3) {
           serials.add(found);
         }
       }
@@ -822,9 +850,11 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
                       'OCR Scanner - ${widget.serviceName}',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
                   IconButton(
@@ -844,17 +874,17 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
           left: 20,
           right: 20,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 360 ? 12 : 16, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.black.withValues(alpha: 0.7),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Text(
+            child: Text(
               'Position the document or QR code inside the frame',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: MediaQuery.of(context).size.width < 360 ? 12 : 14,
               ),
             ),
           ),
@@ -891,16 +921,16 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
               child: GestureDetector(
                 onTap: _captureAndProcess,
                 child: Container(
-                  width: 80,
-                  height: 80,
+                  width: MediaQuery.of(context).size.width < 360 ? 70 : 80,
+                  height: MediaQuery.of(context).size.width < 360 ? 70 : 80,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 4),
                   ),
                   child: Center(
                     child: Container(
-                      width: 64,
-                      height: 64,
+                      width: MediaQuery.of(context).size.width < 360 ? 56 : 64,
+                      height: MediaQuery.of(context).size.width < 360 ? 56 : 64,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: widget.primaryColor,
@@ -1003,14 +1033,14 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(MediaQuery.of(context).size.width < 360 ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Captured image preview
             if (_capturedImage != null)
               Container(
-                height: 180,
+                height: MediaQuery.of(context).size.height < 700 ? 120 : 180,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
@@ -1027,11 +1057,11 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
 
             // Detected serial numbers (quick select) - hide in securityCodeOnly mode
             if (_detectedSerials.isNotEmpty && !widget.securityCodeOnly) ...[
-              const Text(
+              Text(
                 'Detected Serial Numbers (tap to select):',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
+                  fontSize: MediaQuery.of(context).size.width < 360 ? 12 : 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1041,28 +1071,38 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
                 runSpacing: 8,
                 children: _detectedSerials.map((serial) {
                   final isSelected = _serialController.text == serial;
+                  final screenWidth = MediaQuery.of(context).size.width;
+                  final maxItemWidth = screenWidth < 360
+                      ? screenWidth - 60
+                      : screenWidth - 80;
                   return InkWell(
                     onTap: () => _selectSerial(serial),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? widget.primaryColor
-                            : const Color(0xFF2A1A1A),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxItemWidth),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
                           color: isSelected
                               ? widget.primaryColor
-                              : Colors.white24,
+                              : const Color(0xFF2A1A1A),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? widget.primaryColor
+                                : Colors.white24,
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        serial,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight:
-                              isSelected ? FontWeight.bold : FontWeight.normal,
+                        child: Text(
+                          serial,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: screenWidth < 360 ? 12 : 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                     ),
@@ -1074,27 +1114,32 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
 
             // Extracted/Editable Fields
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(MediaQuery.of(context).size.width < 360 ? 12 : 16),
+              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width),
               decoration: BoxDecoration(
                 color: const Color(0xFF2A1A1A),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.white24),
               ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.edit_note, color: widget.primaryColor, size: 24),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.securityCodeOnly
-                            ? 'Security Code (Edit if needed)'
-                            : 'Extracted Data (Edit if needed)',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      Icon(Icons.edit_note, color: widget.primaryColor, size: MediaQuery.of(context).size.width < 360 ? 20 : 24),
+                      SizedBox(width: MediaQuery.of(context).size.width < 360 ? 6 : 8),
+                      Flexible(
+                        child: Text(
+                          widget.securityCodeOnly
+                              ? 'Security Code (Edit if needed)'
+                              : 'Extracted Data (Edit if needed)',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: MediaQuery.of(context).size.width < 360 ? 14 : 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 2,
                         ),
                       ),
                     ],
@@ -1206,16 +1251,24 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
             const SizedBox(height: 20),
 
             // Use Data button
-            ElevatedButton.icon(
-              onPressed: _useExtractedData,
-              icon: const Icon(Icons.check_circle),
-              label: const Text('Use This Data', style: TextStyle(fontSize: 16)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2ECC71),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _useExtractedData,
+                icon: const Icon(Icons.check_circle),
+                label: Text('Use This Data',
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width < 360 ? 14 : 16,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2ECC71),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: MediaQuery.of(context).size.width < 360 ? 12 : 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -1224,22 +1277,32 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
             if (_recognizedText != null && _recognizedText!.isNotEmpty) ...[
               const SizedBox(height: 16),
               ExpansionTile(
-                title: const Text(
+                title: Text(
                   'View All Recognized Text',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(color: Colors.white70, fontSize: MediaQuery.of(context).size.width < 360 ? 12 : 14),
                 ),
                 iconColor: Colors.white54,
                 collapsedIconColor: Colors.white54,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(MediaQuery.of(context).size.width < 360 ? 10 : 12),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2A1A1A),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      _recognizedText!,
-                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width - 40,
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Text(
+                        _recognizedText!,
+                        style: TextStyle(
+                          color: Colors.white60,
+                          fontSize: MediaQuery.of(context).size.width < 360 ? 11 : 12,
+                        ),
+                        softWrap: true,
+                      ),
                     ),
                   ),
                 ],
@@ -1258,45 +1321,60 @@ class _OcrScannerPageState extends State<OcrScannerPage> with WidgetsBindingObse
     int maxLines = 1,
   }) {
     final hasValue = controller.text.isNotEmpty;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSlimPhone = screenWidth < 360;
 
-    return TextField(
-      controller: controller,
-      style: const TextStyle(color: Colors.white),
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(
-          color: hasValue
-              ? widget.primaryColor
-              : Colors.white.withValues(alpha: 0.5),
+    return SizedBox(
+      width: double.infinity,
+      child: TextField(
+        controller: controller,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: isSlimPhone ? 13 : 14,
         ),
-        prefixIcon: Icon(
-          icon,
-          color: hasValue ? widget.primaryColor : Colors.white54,
-        ),
-        suffixIcon: hasValue
-            ? const Icon(Icons.check, color: Color(0xFF2ECC71), size: 20)
-            : null,
-        filled: true,
-        fillColor: hasValue
-            ? widget.primaryColor.withValues(alpha: 0.1)
-            : Colors.transparent,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(
+        maxLines: maxLines,
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(
             color: hasValue
-                ? widget.primaryColor.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.2),
+                ? widget.primaryColor
+                : Colors.white.withValues(alpha: 0.5),
+            fontSize: isSlimPhone ? 12 : 13,
           ),
+          prefixIcon: Icon(
+            icon,
+            color: hasValue ? widget.primaryColor : Colors.white54,
+            size: isSlimPhone ? 20 : 24,
+          ),
+          suffixIcon: hasValue
+              ? const Icon(Icons.check, color: Color(0xFF2ECC71), size: 20)
+              : null,
+          filled: true,
+          fillColor: hasValue
+              ? widget.primaryColor.withValues(alpha: 0.1)
+              : Colors.transparent,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: isSlimPhone ? 8 : 12,
+            vertical: isSlimPhone ? 8 : 12,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: hasValue
+                  ? widget.primaryColor.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.2),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: widget.primaryColor),
+          ),
+          isDense: isSlimPhone,
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: widget.primaryColor),
-        ),
+        onChanged: (value) {
+          setState(() {});
+        },
       ),
-      onChanged: (value) {
-        setState(() {});
-      },
     );
   }
 }

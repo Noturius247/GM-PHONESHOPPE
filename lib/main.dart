@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'firebase_options.dart';
 import 'design/app_theme.dart';
 import 'design/app_colors.dart';
@@ -9,13 +11,42 @@ import 'pages/main_admin_page.dart';
 import 'pages/main_user_page.dart';
 import 'services/auth_service.dart';
 import 'services/sync_service.dart';
+import 'services/offline_sync_service.dart';
 import 'services/notification_service.dart';
+import 'services/onesignal_service.dart';
+import 'services/local_notification_service.dart';
+import 'services/inventory_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // Run app IMMEDIATELY - Firebase will initialize in the splash screen
   // This prevents "app not responding" by showing UI instantly
   runApp(const GMPhoneShoppeApp());
+}
+
+/// Lifecycle observer to pause/resume Firebase listeners when app is backgrounded
+/// This significantly reduces data usage when the app is not in use
+class AppLifecycleObserver extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
+        // App is going to background - pause all listeners to save data
+        SyncService.pauseListeners();
+        NotificationService.pause();
+        debugPrint('App backgrounded - pausing all listeners to save data');
+        break;
+      case AppLifecycleState.resumed:
+        // App is back to foreground - resume all listeners
+        SyncService.resumeListeners();
+        NotificationService.resume();
+        debugPrint('App resumed - resuming all listeners');
+        break;
+    }
+  }
 }
 
 class GMPhoneShoppeApp extends StatelessWidget {
@@ -52,9 +83,17 @@ class _AuthCheckState extends State<AuthCheck> with TickerProviderStateMixin {
   late Animation<double> _pulseAnimation;
   late AnimationController _shimmerController;
 
+  // Lifecycle observer for pausing/resuming sync when app is backgrounded
+  late final AppLifecycleObserver _lifecycleObserver;
+
   @override
   void initState() {
     super.initState();
+
+    // Register lifecycle observer to pause sync when app is backgrounded
+    // This significantly reduces data usage
+    _lifecycleObserver = AppLifecycleObserver();
+    WidgetsBinding.instance.addObserver(_lifecycleObserver);
 
     // Fade in animation
     _fadeController = AnimationController(
@@ -95,6 +134,8 @@ class _AuthCheckState extends State<AuthCheck> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(_lifecycleObserver);
     _fadeController.dispose();
     _pulseController.dispose();
     _shimmerController.dispose();
@@ -129,6 +170,19 @@ class _AuthCheckState extends State<AuthCheck> with TickerProviderStateMixin {
     );
   }
 
+  Future<void> _applyWakelockSetting() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keepScreenOn = prefs.getBool('keep_screen_on') ?? false;
+      if (keepScreenOn) {
+        await WakelockPlus.enable();
+        debugPrint('Wakelock enabled - screen will stay on');
+      }
+    } catch (e) {
+      debugPrint('Error applying wakelock setting: $e');
+    }
+  }
+
   Future<void> _checkAuth() async {
     try {
       _updateStatus('Initializing...', 0.1);
@@ -151,6 +205,9 @@ class _AuthCheckState extends State<AuthCheck> with TickerProviderStateMixin {
       if (!mounted || _navigated) return;
       _updateStatus('Setting up services...', 0.2);
 
+      // Apply Keep Screen On setting if enabled
+      _applyWakelockSetting();
+
       // Initialize SyncService in background (non-blocking)
       // Don't await - let it run while we check auth
       SyncService.initialize().then((_) {
@@ -159,8 +216,40 @@ class _AuthCheckState extends State<AuthCheck> with TickerProviderStateMixin {
         debugPrint('SyncService initialization error: $e');
       });
 
+      // Initialize OfflineSyncService globally to sync pending data when online
+      OfflineSyncService.initialize().then((_) {
+        debugPrint('OfflineSyncService initialized - will sync pending data when online');
+      }).catchError((e) {
+        debugPrint('OfflineSyncService initialization error: $e');
+      });
+
+      // Run duplicate SKU migration in background (non-blocking)
+      // This fixes any duplicate serial numbers from offline device conflicts
+      InventoryService.runDuplicateSkuMigration().then((report) {
+        if (report['alreadyRun'] == true) {
+          debugPrint('SKU migration: Already completed previously');
+        } else if (report['success'] == true) {
+          final fixed = report['itemsFixed'] as int;
+          if (fixed > 0) {
+            debugPrint('SKU migration: Fixed $fixed duplicate serial numbers');
+          } else {
+            debugPrint('SKU migration: No duplicates found');
+          }
+        } else {
+          debugPrint('SKU migration: Failed - ${report['errors']}');
+        }
+      }).catchError((e) {
+        debugPrint('SKU migration error: $e');
+      });
+
+      // Initialize local notifications FIRST (works offline) - await to ensure permissions are granted
+      await LocalNotificationService.initialize();
+
       // Initialize real-time stock alert listener
       NotificationService.initialize();
+
+      // Initialize OneSignal push notifications (works when app is closed)
+      OneSignalService.initialize();
 
       // Small delay to let UI render smoothly
       await Future.delayed(const Duration(milliseconds: 100));
@@ -385,6 +474,9 @@ class _AuthCheckState extends State<AuthCheck> with TickerProviderStateMixin {
                             fontWeight: FontWeight.w400,
                             letterSpacing: 0.5,
                           ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],

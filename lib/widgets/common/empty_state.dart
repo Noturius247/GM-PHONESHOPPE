@@ -22,9 +22,14 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSlimPhone = screenWidth < 360;
+    final padding = isSlimPhone ? AppSpacing.xl : AppSpacing.xxxl;
+    final iconSize = isSlimPhone ? 48.0 : 64.0;
+
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxxl),
+        padding: EdgeInsets.all(padding),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -37,7 +42,7 @@ class EmptyState extends StatelessWidget {
               ),
               child: Icon(
                 icon,
-                size: 64,
+                size: iconSize,
                 color: AppColors.textDisabled,
               ),
             ),

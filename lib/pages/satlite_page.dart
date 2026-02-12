@@ -9,6 +9,7 @@ import '../services/pos_settings_service.dart';
 import '../widgets/error_dialog.dart';
 import 'multi_scanner_page.dart';
 import 'ocr_scanner_page.dart';
+import '../utils/snackbar_utils.dart';
 
 class SatlitePage extends StatefulWidget {
   const SatlitePage({super.key});
@@ -294,7 +295,11 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
             ],
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -484,13 +489,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                   missingFields.add('Account Number');
                 }
                 if (missingFields.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Please fill in: ${missingFields.join(', ')}'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please fill in: ${missingFields.join(', ')}');
                   return;
                 }
 
@@ -498,13 +497,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                 final hasConnection = await CacheService.hasConnectivity();
                 if (!hasConnection) {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No internet connection. Cannot add customer offline.'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  SnackBarUtils.showError(context, 'No internet connection. Cannot add customer offline.');
                   return;
                 }
 
@@ -573,13 +566,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                     _currentPage = 0; // Reset to first page to show new customer
                   });
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Customer added successfully!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(context, 'Customer added successfully!');
                 } else {
                   if (!context.mounted) return;
                   await ErrorDialog.showSaveError(context: context);
@@ -966,13 +953,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                   missingFields.add('Account Number');
                 }
                 if (missingFields.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Please fill in: ${missingFields.join(', ')}'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please fill in: ${missingFields.join(', ')}');
                   return;
                 }
 
@@ -1083,13 +1064,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                     _currentPage = 0; // Reset to first page to show new customer
                   });
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Customer added successfully!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(context, 'Customer added successfully!');
                 } else {
                   if (!context.mounted) return;
                   await ErrorDialog.showSaveError(context: context);
@@ -1171,7 +1146,11 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1439,13 +1418,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                   missingFields.add('Account Number');
                 }
                 if (missingFields.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Please fill in: ${missingFields.join(', ')}'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please fill in: ${missingFields.join(', ')}');
                   return;
                 }
 
@@ -1495,13 +1468,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                 final hasConnection = await CacheService.hasConnectivity();
                 if (!hasConnection) {
                   if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('No internet connection. Cannot add customer offline.'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  SnackBarUtils.showError(context, 'No internet connection. Cannot add customer offline.');
                   return;
                 }
 
@@ -1572,13 +1539,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                     _currentPage = 0; // Reset to first page to show new customer
                   });
 
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Customer added successfully!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(context, 'Customer added successfully!');
                 } else {
                   if (!context.mounted) return;
                   await ErrorDialog.showSaveError(context: context);
@@ -1819,7 +1780,11 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
+            width: MediaQuery.of(context).size.width < 320
+                ? MediaQuery.of(context).size.width * 0.9
+                : (MediaQuery.of(context).size.width < 500
+                    ? MediaQuery.of(context).size.width * 0.85
+                    : 480),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2030,38 +1995,31 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                   missingFields.add('Account Number');
                 }
                 if (missingFields.isNotEmpty) {
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Please fill in: ${missingFields.join(', ')}'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please fill in: ${missingFields.join(', ')}');
                   return;
                 }
 
                 // Close dialog immediately and show saving indicator
                 navigator.pop();
 
-                scaffoldMessenger.showSnackBar(
-                  const SnackBar(
-                    content: Row(
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
+                SnackBarUtils.showTopSnackBar(
+                  this.context,
+                  message: 'Saving changes...',
+                  backgroundColor: const Color(0xFF3498DB),
+                  duration: const Duration(seconds: 30),
+                  content: const Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
-                        SizedBox(width: 12),
-                        Text('Saving changes...'),
-                      ],
-                    ),
-                    duration: Duration(seconds: 30),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: Color(0xFF3498DB),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Saving changes...'),
+                    ],
                   ),
                 );
 
@@ -2131,16 +2089,10 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                     });
                   }
 
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Customer ${nameController.text} updated successfully!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(this.context, 'Customer ${nameController.text} updated successfully!');
                 } else {
                   await ErrorDialog.showSaveError(
-                    context: context,
+                    context: this.context,
                     customMessage: 'Failed to update customer.\n\nPlease check your internet connection and try again.',
                   );
                 }
@@ -2248,16 +2200,14 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                     _filteredCustomers.removeWhere((c) => c['id'] == customerId);
                   });
 
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('${customer['name']} deleted'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: const Color(0xFFE74C3C),
-                    ),
+                  SnackBarUtils.showTopSnackBar(
+                    this.context,
+                    message: '${customer['name']} deleted',
+                    backgroundColor: const Color(0xFFE74C3C),
                   );
                 } else {
                   await ErrorDialog.showSaveError(
-                    context: context,
+                    context: this.context,
                     customMessage: 'Failed to delete customer.\n\nPlease check your internet connection and try again.',
                   );
                 }
@@ -2280,21 +2230,15 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
 
                 if (result == 'duplicate') {
                   await ErrorDialog.show(
-                    context: context,
+                    context: this.context,
                     title: 'Duplicate Request',
                     message: 'A pending delete request already exists for this customer.\n\nPlease wait for admin to review the existing request.',
                   );
                 } else if (result != null) {
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Delete request for ${customer['name']} submitted for admin approval!'),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  SnackBarUtils.showSuccess(this.context, 'Delete request for ${customer['name']} submitted for admin approval!');
                 } else {
                   await ErrorDialog.showSaveError(
-                    context: context,
+                    context: this.context,
                     customMessage: 'Failed to submit delete request.\n\nPlease check your internet connection and try again.',
                   );
                 }
@@ -2505,7 +2449,7 @@ class _SatlitePageState extends State<SatlitePage> with TickerProviderStateMixin
                           GridView.count(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 4,
+                            crossAxisCount: screenWidth < 360 ? 1 : (screenWidth < 600 ? 2 : 4),
                             mainAxisSpacing: isCompact ? 4 : (isMobile ? 4 : 16),
                             crossAxisSpacing: isCompact ? 4 : (isMobile ? 4 : 16),
                             childAspectRatio: isCompact ? 2.0 : (isMobile ? 1.0 : 1.3),
@@ -2679,7 +2623,8 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = isCompact ? 8.0 : (isMobile ? 12.0 : 40.0);
+    // Reduced sizes to match reports page style
+    final borderRadius = isCompact ? 8.0 : (isMobile ? 10.0 : 16.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
@@ -2694,22 +2639,22 @@ class _StatCard extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            // Rounded rectangle decorative element - hide in compact mode
-            if (!isCompact)
+            // Rounded rectangle decorative element - hide on mobile
+            if (!isCompact && !isMobile)
               Positioned(
-                top: isMobile ? -15 : -30,
-                right: isMobile ? -15 : -30,
+                top: -20,
+                right: -20,
                 child: Container(
-                  width: isMobile ? 50 : 120,
-                  height: isMobile ? 50 : 120,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(isMobile ? 12 : 30),
+                    borderRadius: BorderRadius.circular(15),
                     color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
             Padding(
-              padding: EdgeInsets.all(isCompact ? 4 : (isMobile ? 6 : 16)),
+              padding: EdgeInsets.all(isCompact ? 4 : (isMobile ? 8 : 14)),
               child: isCompact
                   ? Row(
                       children: [
@@ -2724,7 +2669,7 @@ class _StatCard extends StatelessWidget {
                                 value,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 12,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -2747,15 +2692,15 @@ class _StatCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(icon, color: Colors.white, size: isMobile ? 16 : 32),
-                        SizedBox(height: isMobile ? 2 : 8),
+                        Icon(icon, color: Colors.white, size: isMobile ? 16 : 24),
+                        SizedBox(height: isMobile ? 2 : 6),
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(
                             value,
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: isMobile ? 14 : 32,
+                              fontSize: isMobile ? 13 : 18,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -2766,7 +2711,7 @@ class _StatCard extends StatelessWidget {
                             title,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: isMobile ? 8 : 14,
+                              fontSize: isMobile ? 8 : 11,
                             ),
                           ),
                         ),
@@ -2859,14 +2804,7 @@ class _CustomerCardState extends State<_CustomerCard> with SingleTickerProviderS
 
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Copied: $text'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-        backgroundColor: const Color(0xFFFF6B35),
-      ),
-    );
+    SnackBarUtils.showInfo(context, 'Copied: $text', duration: const Duration(seconds: 1));
   }
 
   Widget _buildDetailRow(String label, String value, {bool copiable = false}) {

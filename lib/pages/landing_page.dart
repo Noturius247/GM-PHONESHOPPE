@@ -281,12 +281,20 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'GM PhoneShoppe',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                  Flexible(
+                    child: Builder(
+                      builder: (context) {
+                        final screenWidth = MediaQuery.of(context).size.width;
+                        return Text(
+                          'GM PhoneShoppe',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: screenWidth < 360 ? 16 : 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -365,13 +373,14 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
     required String title,
     required VoidCallback onTap,
   }) {
+    final screenWidth = MediaQuery.of(context).size.width;
     return ListTile(
       leading: Icon(icon, color: Colors.white),
       title: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 16,
+          fontSize: screenWidth < 360 ? 14 : 16,
         ),
       ),
       onTap: onTap,
@@ -429,6 +438,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
       opacity: _showScrollToTop ? 1.0 : 0.0,
       duration: const Duration(milliseconds: 300),
       child: FloatingActionButton(
+        heroTag: 'landingScrollTop',
         onPressed: _scrollToTop,
         backgroundColor: const Color(0xFF8B1A1A),
         foregroundColor: Colors.white,
@@ -685,9 +695,10 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
 
   Widget _buildHeroText(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final isSlimPhone = screenWidth < 360;
     final isMobile = screenWidth < 900;
-    final titleFontSize = isMobile ? 32.0 : 64.0;
-    final subtitleFontSize = isMobile ? 18.0 : 32.0;
+    final titleFontSize = isSlimPhone ? 24.0 : (isMobile ? 32.0 : 64.0);
+    final subtitleFontSize = isSlimPhone ? 15.0 : (isMobile ? 18.0 : 32.0);
     final descriptionFontSize = isMobile ? 13.0 : 16.0;
 
     return Column(
@@ -1191,9 +1202,10 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
     List<Map<String, dynamic>>? chips,
   ) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final isSlimPhone = screenWidth < 360;
     final isMobile = screenWidth < 900;
-    final titleFontSize = isMobile ? 32.0 : 64.0;
-    final subtitleFontSize = isMobile ? 18.0 : 32.0;
+    final titleFontSize = isSlimPhone ? 24.0 : (isMobile ? 32.0 : 64.0);
+    final subtitleFontSize = isSlimPhone ? 15.0 : (isMobile ? 18.0 : 32.0);
     final descriptionFontSize = isMobile ? 13.0 : 16.0;
 
     return Column(

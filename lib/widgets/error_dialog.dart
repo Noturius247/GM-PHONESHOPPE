@@ -41,6 +41,8 @@ class ErrorDialog {
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

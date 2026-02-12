@@ -9,15 +9,16 @@ import 'basket_page.dart';
 import 'pos_page.dart';
 import 'pos_reports_page.dart';
 import 'label_printing_page.dart';
+import '../utils/snackbar_utils.dart';
 
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
 
   @override
-  State<InventoryPage> createState() => _InventoryPageState();
+  State<InventoryPage> createState() => InventoryPageState();
 }
 
-class _InventoryPageState extends State<InventoryPage> with SingleTickerProviderStateMixin {
+class InventoryPageState extends State<InventoryPage> with SingleTickerProviderStateMixin {
   List<Map<String, dynamic>> _allItems = [];
   List<Map<String, dynamic>> _filteredItems = [];
   Map<String, dynamic> _stats = {};
@@ -39,7 +40,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
 
   // Collapse/expand state
   final Set<String> _expandedItems = {};
-  bool _allExpanded = true; // Start with all items expanded
+  bool _allExpanded = false; // Start with all items collapsed
 
   // Dark theme colors
   static const Color _bgColor = Color(0xFF1A0A0A);
@@ -48,6 +49,11 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
   static const Color _accentDark = Color(0xFFD35400);
   static const Color _textPrimary = Colors.white;
   static const Color _textSecondary = Color(0xFFB0B0B0);
+
+  // Public method to open item details from outside (e.g., notification bell)
+  void openItemDetails(Map<String, dynamic> item) {
+    _showItemDetailsDialog(item);
+  }
 
   @override
   void initState() {
@@ -68,6 +74,20 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
   }
 
   bool get _isAdminOrSuperAdmin => _currentUserRole == 'admin' || _currentUserRole == 'superadmin';
+
+  // Short status text for mobile
+  String _getShortStatus(String status) {
+    switch (status) {
+      case 'In Stock':
+        return 'In';
+      case 'Low Stock':
+        return 'Low';
+      case 'Out of Stock':
+        return 'Out';
+      default:
+        return status.length > 5 ? status.substring(0, 5) : status;
+    }
+  }
 
   Future<void> _navigateToPOS() async {
     // Ensure user role is loaded before routing
@@ -118,9 +138,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading inventory: $e')),
-        );
+        SnackBarUtils.showError(context, 'Error loading inventory: $e');
       }
     }
   }
@@ -243,6 +261,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
     // In landscape, use height to determine if mobile (height < 600 means phone in landscape)
     final isMobile = isLandscape ? screenHeight < 600 : screenWidth < 600;
     final isCompact = isMobile && isLandscape;
+    final isSlimPhone = screenWidth < 360;
 
     return Scaffold(
       backgroundColor: _bgColor,
@@ -253,23 +272,28 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
         toolbarHeight: isCompact ? 44 : kToolbarHeight,
         title: Row(
           children: [
-            Container(
-              padding: EdgeInsets.all(isCompact ? 6 : 8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [_accentColor, _accentDark],
+            // Hide icon on very slim phones to save space
+            if (!isSlimPhone)
+              Container(
+                padding: EdgeInsets.all(isCompact ? 6 : 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [_accentColor, _accentDark],
+                  ),
+                  borderRadius: BorderRadius.circular(isCompact ? 8 : 10),
                 ),
-                borderRadius: BorderRadius.circular(isCompact ? 8 : 10),
+                child: Icon(Icons.inventory_2, color: Colors.white, size: isCompact ? 16 : 20),
               ),
-              child: Icon(Icons.inventory_2, color: Colors.white, size: isCompact ? 16 : 20),
-            ),
-            SizedBox(width: isCompact ? 8 : 12),
-            Text(
-              'Inventory',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: isCompact ? 16 : 20,
-                color: Colors.white,
+            if (!isSlimPhone) SizedBox(width: isCompact ? 8 : 12),
+            Flexible(
+              child: Text(
+                'Inventory',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: isSlimPhone ? 16 : (isCompact ? 16 : 20),
+                  color: Colors.white,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -279,9 +303,11 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
           IconButton(
             icon: Icon(
               _allExpanded ? Icons.unfold_less : Icons.unfold_more,
-              size: isCompact ? 20 : 24,
+              size: isSlimPhone ? 18 : (isCompact ? 20 : 24),
               color: Colors.white,
             ),
+            padding: isSlimPhone ? const EdgeInsets.all(4) : const EdgeInsets.all(8),
+            constraints: isSlimPhone ? const BoxConstraints(minWidth: 32, minHeight: 32) : null,
             onPressed: () {
               setState(() {
                 _allExpanded = !_allExpanded;
@@ -298,7 +324,9 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
           ),
           // Label Printing Button
           IconButton(
-            icon: Icon(Icons.qr_code_2, size: isCompact ? 20 : 24, color: Colors.white),
+            icon: Icon(Icons.qr_code_2, size: isSlimPhone ? 18 : (isCompact ? 20 : 24), color: Colors.white),
+            padding: isSlimPhone ? const EdgeInsets.all(4) : const EdgeInsets.all(8),
+            constraints: isSlimPhone ? const BoxConstraints(minWidth: 32, minHeight: 32) : null,
             onPressed: () {
               Navigator.push(
                 context,
@@ -311,12 +339,16 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
           ),
           // POS Button - navigates based on user role
           IconButton(
-            icon: Icon(Icons.point_of_sale, size: isCompact ? 20 : 24, color: Colors.white),
+            icon: Icon(Icons.point_of_sale, size: isSlimPhone ? 18 : (isCompact ? 20 : 24), color: Colors.white),
+            padding: isSlimPhone ? const EdgeInsets.all(4) : const EdgeInsets.all(8),
+            constraints: isSlimPhone ? const BoxConstraints(minWidth: 32, minHeight: 32) : null,
             onPressed: _navigateToPOS,
             tooltip: 'POS',
           ),
           IconButton(
-            icon: Icon(Icons.refresh, size: isCompact ? 20 : 24, color: Colors.white),
+            icon: Icon(Icons.refresh, size: isSlimPhone ? 18 : (isCompact ? 20 : 24), color: Colors.white),
+            padding: isSlimPhone ? const EdgeInsets.all(4) : const EdgeInsets.all(8),
+            constraints: isSlimPhone ? const BoxConstraints(minWidth: 32, minHeight: 32) : null,
             onPressed: _loadInventory,
             tooltip: 'Refresh',
           ),
@@ -332,7 +364,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                 slivers: [
                   // Stats Cards
                   SliverToBoxAdapter(
-                    child: _buildStatsSection(isMobile, isCompact),
+                    child: _buildStatsSection(isMobile, isCompact, isSlimPhone),
                   ),
                   // Search and Filters
                   SliverToBoxAdapter(
@@ -388,7 +420,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                                   return _buildItemCard(_paginatedItems[index], actualIndex + 1, isMobile, isCompact);
                                 } else if (index == _paginatedItems.length && _filteredItems.length > _itemsPerPage) {
                                   // Add pagination controls after the list
-                                  return _buildPaginationControls(isMobile);
+                                  return _buildPaginationControls(isMobile, isSlimPhone, screenWidth);
                                 }
                                 return null;
                               },
@@ -400,6 +432,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'inventoryAddItem',
         onPressed: () => _showAddItemDialog(),
         icon: const Icon(Icons.add),
         label: const Text('Add Item'),
@@ -409,7 +442,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
     );
   }
 
-  Widget _buildPaginationControls(bool isMobile) {
+  Widget _buildPaginationControls(bool isMobile, bool isSlimPhone, double screenWidth) {
     final startItem = _currentPage * _itemsPerPage + 1;
     final endItem = ((_currentPage + 1) * _itemsPerPage).clamp(0, _filteredItems.length);
 
@@ -427,8 +460,10 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
             'Showing $startItem-$endItem of ${_filteredItems.length}',
             style: TextStyle(
               color: _textSecondary,
-              fontSize: isMobile ? 12 : 14,
+              fontSize: screenWidth < 360 ? 10 : 12,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
           SizedBox(height: isMobile ? 8 : 12),
           // Navigation controls
@@ -468,8 +503,8 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                       onTap: () => _goToPage(pageNumber),
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
-                        width: isMobile ? 32 : 40,
-                        height: isMobile ? 32 : 40,
+                        width: isSlimPhone ? 28 : (isMobile ? 32 : 40),
+                        height: isSlimPhone ? 28 : (isMobile ? 32 : 40),
                         decoration: BoxDecoration(
                           color: isCurrentPage
                               ? _accentColor
@@ -514,7 +549,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
     );
   }
 
-  Widget _buildStatsSection(bool isMobile, bool isCompact) {
+  Widget _buildStatsSection(bool isMobile, bool isCompact, bool isSlimPhone) {
     final currencyFormat = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
 
     return Padding(
@@ -543,6 +578,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                   Colors.blue,
                   isMobile,
                   isCompact,
+                  isSlimPhone,
                 ),
                 _buildStatCard(
                   'Total Quantity',
@@ -551,6 +587,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                   Colors.green,
                   isMobile,
                   isCompact,
+                  isSlimPhone,
                 ),
                 _buildStatCard(
                   'Low Stock',
@@ -559,6 +596,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                   Colors.orange,
                   isMobile,
                   isCompact,
+                  isSlimPhone,
                 ),
                 _buildStatCard(
                   'Out of Stock',
@@ -567,6 +605,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                   Colors.red,
                   isMobile,
                   isCompact,
+                  isSlimPhone,
                 ),
                 // Total Value - only visible to admin/super admin
                 if (_isAdminOrSuperAdmin)
@@ -577,6 +616,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                     Colors.teal,
                     isMobile,
                     isCompact,
+                    isSlimPhone,
                   ),
               ],
             ),
@@ -586,7 +626,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color, bool isMobile, bool isCompact) {
+  Widget _buildStatCard(String title, String value, IconData icon, Color color, bool isMobile, bool isCompact, bool isSlimPhone) {
     if (isCompact) {
       return Container(
         margin: const EdgeInsets.only(right: 8),
@@ -622,24 +662,25 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
       );
     }
 
+    // Reduced sizes to match reports page style
     return Container(
-      width: isMobile ? 110 : 140,
-      margin: const EdgeInsets.only(right: 12),
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      width: isSlimPhone ? 75 : (isMobile ? 90 : 120),
+      margin: const EdgeInsets.only(right: 10),
+      padding: EdgeInsets.all(isMobile ? 8 : 12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: isMobile ? 20 : 24),
-          const SizedBox(height: 8),
+          Icon(icon, color: color, size: isMobile ? 16 : 20),
+          const SizedBox(height: 6),
           Text(
             value,
             style: TextStyle(
-              fontSize: isMobile ? 14 : 18,
+              fontSize: isSlimPhone ? 10 : (isMobile ? 12 : 14),
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -648,7 +689,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
           Text(
             title,
             style: TextStyle(
-              fontSize: isMobile ? 10 : 12,
+              fontSize: isSlimPhone ? 8 : (isMobile ? 9 : 10),
               color: _textSecondary,
             ),
           ),
@@ -1272,7 +1313,10 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                 children: [
                   // Item number badge
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 6 : 10,
+                      vertical: isMobile ? 4 : 6,
+                    ),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [_accentColor, _accentDark],
@@ -1283,12 +1327,12 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                       '#$itemNumber',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: isMobile ? 12 : 14,
+                        fontSize: isMobile ? 10 : 14,
                         color: Colors.white,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: isMobile ? 8 : 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1297,10 +1341,11 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                           name,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: isMobile ? 14 : 16,
+                            fontSize: isMobile ? 13 : 16,
                             color: _textPrimary,
                           ),
-                          maxLines: isExpanded ? 2 : 1,
+                          // Allow 2 lines on mobile for better readability
+                          maxLines: isExpanded ? 3 : (isMobile ? 2 : 1),
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (!isExpanded) ...[
@@ -1309,7 +1354,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                             'Qty: $quantity  •  ${currencyFormat.format(sellingPrice)}',
                             style: TextStyle(
                               color: _textSecondary.withValues(alpha: 0.7),
-                              fontSize: isMobile ? 11 : 12,
+                              fontSize: isMobile ? 10 : 12,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -1319,27 +1364,28 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Flexible(
-                    flex: 0,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 8 : 12,
-                        vertical: isMobile ? 4 : 6,
+                  Container(
+                    constraints: BoxConstraints(
+                      maxWidth: isMobile ? 70 : 100,
+                    ),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 6 : 12,
+                      vertical: isMobile ? 3 : 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      isMobile ? _getShortStatus(status) : status,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 9 : 12,
                       ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: isMobile ? 10 : 12,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -1467,13 +1513,26 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                           children: [
                             Expanded(
                               child: _buildActionButton(
+                                onPressed: () => _showTransferToIndayDialog(item),
+                                icon: Icons.arrow_forward,
+                                label: 'Transfer',
+                                color: const Color(0xFF16A085),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _buildActionButton(
                                 onPressed: () => _showItemDetailsDialog(item),
                                 icon: Icons.visibility,
                                 label: 'View',
                                 color: Colors.teal,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
                             Expanded(
                               child: _buildActionButton(
                                 onPressed: () => _confirmDeleteItem(item),
@@ -1503,6 +1562,12 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                           icon: const Icon(Icons.add_circle_outline, size: 18),
                           label: const Text('Adjust Stock'),
                           style: TextButton.styleFrom(foregroundColor: _accentColor),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _showTransferToIndayDialog(item),
+                          icon: const Icon(Icons.arrow_forward, size: 18),
+                          label: const Text('Transfer to Inday'),
+                          style: TextButton.styleFrom(foregroundColor: const Color(0xFF16A085)),
                         ),
                         TextButton.icon(
                           onPressed: () => _showEditItemDialog(item),
@@ -1858,7 +1923,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                             final nextSku = await InventoryService.generateNextSku();
                             serialNoController.text = nextSku;
                           },
-                          tooltip: 'Auto-generate SKU (9000000+ series)',
+                          tooltip: 'Auto-generate random SKU (7000000+ series)',
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -2322,7 +2387,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                           final nextSku = await InventoryService.generateNextSku();
                           serialNoController.text = nextSku;
                         },
-                        tooltip: 'Auto-generate SKU (9000000+ series)',
+                        tooltip: 'Auto-generate random SKU (7000000+ series)',
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -2679,9 +2744,7 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
               onPressed: () async {
                 final qty = int.tryParse(quantityController.text);
                 if (qty == null || qty < 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a valid quantity')),
-                  );
+                  SnackBarUtils.showWarning(context, 'Please enter a valid quantity');
                   return;
                 }
 
@@ -2719,22 +2782,123 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                     break;
                 }
 
+                if (!context.mounted) return;
+                Navigator.pop(context);
+                _loadInventory();
                 if (success) {
-                  Navigator.pop(context);
-                  _loadInventory();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Stock adjusted successfully')),
-                  );
+                  if (mounted) SnackBarUtils.showSuccess(this.context, 'Stock adjusted successfully');
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Failed to adjust stock')),
-                  );
+                  if (mounted) SnackBarUtils.showError(this.context, 'Failed to adjust stock');
                 }
               },
               child: const Text('Adjust'),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showTransferToIndayDialog(Map<String, dynamic> item) {
+    final quantityController = TextEditingController();
+    final reasonController = TextEditingController();
+    final currentQty = item['quantity'] as int? ?? 0;
+    final currentIndayQty = item['indayQuantity'] as int? ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _cardColor,
+        title: Text('Transfer to Inday: ${item['name']}', style: const TextStyle(color: _textPrimary)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _accentColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _accentColor.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Main Inventory:', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w500)),
+                        Text('$currentQty', style: const TextStyle(color: _accentColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Inday Inventory:', style: TextStyle(color: _textPrimary, fontWeight: FontWeight.w500)),
+                        Text('$currentIndayQty', style: TextStyle(color: const Color(0xFF16A085), fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildDialogTextField(
+                controller: quantityController,
+                label: 'Quantity to Transfer',
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              _buildDialogTextField(
+                controller: reasonController,
+                label: 'Reason (optional)',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF16A085),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final qty = int.tryParse(quantityController.text);
+              if (qty == null || qty <= 0) {
+                SnackBarUtils.showWarning(context, 'Please enter a valid quantity');
+                return;
+              }
+
+              if (qty > currentQty) {
+                SnackBarUtils.showWarning(context, 'Cannot transfer more than available stock ($currentQty)');
+                return;
+              }
+
+              final success = await InventoryService.transferToInday(
+                category: item['category'],
+                itemId: item['id'],
+                quantity: qty,
+                reason: reasonController.text.isEmpty ? 'Transferred to Inday Inventory' : reasonController.text,
+                transferredByEmail: _currentUserEmail,
+                transferredByName: _currentUserName,
+              );
+
+              if (!context.mounted) return;
+              Navigator.pop(context);
+              _loadInventory();
+              if (success) {
+                if (mounted) SnackBarUtils.showSuccess(this.context, 'Successfully transferred $qty items to Inday Inventory');
+              } else {
+                if (mounted) SnackBarUtils.showError(this.context, 'Failed to transfer items');
+              }
+            },
+            child: const Text('Transfer'),
+          ),
+        ],
       ),
     );
   }
@@ -2859,17 +3023,14 @@ class _InventoryPageState extends State<InventoryPage> with SingleTickerProvider
                 item['id'],
               );
 
+              if (!context.mounted) return;
               Navigator.pop(context);
 
               if (success) {
                 _loadInventory();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Item deleted successfully')),
-                );
+                if (mounted) SnackBarUtils.showSuccess(this.context, 'Item deleted successfully');
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Failed to delete item')),
-                );
+                if (mounted) SnackBarUtils.showError(this.context, 'Failed to delete item');
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.white)),

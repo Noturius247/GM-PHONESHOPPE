@@ -6,6 +6,7 @@ import 'gsat_page.dart';
 import 'gsat_activation_page.dart';
 import 'sky_page.dart';
 import 'inventory_page.dart';
+import 'inday_inventory_page.dart';
 import 'transaction_history_page.dart';
 import 'landing_page.dart';
 import 'admin_profile_page.dart';
@@ -18,6 +19,7 @@ import '../services/email_service.dart';
 import '../services/cache_service.dart';
 import '../services/staff_pin_service.dart';
 import '../services/notification_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class MainAdminPage extends StatefulWidget {
   const MainAdminPage({super.key});
@@ -33,6 +35,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
   late Animation<double> _scaleAnimation;
   bool _showScrollToTop = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<InventoryPageState> _inventoryKey = GlobalKey<InventoryPageState>();
   String _userFirstName = 'Admin';
 
   // Low stock notification state
@@ -93,6 +96,11 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
       icon: Icons.inventory_2,
       title: 'Inventory',
       gradientColors: inventoryGradient,
+    ),
+    _MenuItem(
+      icon: Icons.warehouse,
+      title: 'Inday Inventory',
+      gradientColors: const [Color(0xFF16A085), Color(0xFF117A65)],
     ),
     _MenuItem(
       icon: Icons.history,
@@ -164,7 +172,8 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
       const GSatPage(),
       const GsatActivationPage(),
       const SkyPage(),
-      const InventoryPage(),
+      InventoryPage(key: _inventoryKey),
+      const IndayInventoryPage(),
       const TransactionHistoryPage(),
       const LabelPrintingPage(),
       const _AllUsersPage(),
@@ -306,6 +315,10 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
         onTap: () {
           Navigator.pop(context);
           setState(() => _selectedIndex = 6); // Navigate to Inventory
+          // Open the item details dialog after navigation
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _inventoryKey.currentState?.openItemDetails(item);
+          });
         },
         child: Row(
           children: [
@@ -331,7 +344,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
                 children: [
                   Text(name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 2),
-                  Text('SKU: $sku', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11)),
+                  Text('SKU: $sku', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
@@ -341,10 +354,14 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
                 Text(
                   isOutOfStock ? 'Empty' : '$qty left',
                   style: TextStyle(color: alertColor, fontWeight: FontWeight.bold, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   'Reorder: $reorderLevel',
                   style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 10),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -387,36 +404,34 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
     _loadLowStockItems(); // Refresh bell icon badge
     final title = alert['title'] ?? 'Stock Alert';
     final body = alert['body'] ?? '';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              alert['alertType'] == 'out_of_stock'
-                  ? Icons.error_outline
-                  : Icons.warning_amber_rounded,
-              color: Colors.white,
+    SnackBarUtils.showTopSnackBar(
+      context,
+      message: '',
+      content: Row(
+        children: [
+          Icon(
+            alert['alertType'] == 'out_of_stock'
+                ? Icons.error_outline
+                : Icons.warning_amber_rounded,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                if (body.isNotEmpty) Text(body, style: const TextStyle(fontSize: 12)),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  if (body.isNotEmpty) Text(body, style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: alert['alertType'] == 'out_of_stock'
-            ? const Color(0xFFD32F2F)
-            : const Color(0xFFF57C00),
-        duration: const Duration(seconds: 5),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ],
       ),
+      backgroundColor: alert['alertType'] == 'out_of_stock'
+          ? const Color(0xFFD32F2F)
+          : const Color(0xFFF57C00),
+      duration: const Duration(seconds: 5),
     );
   }
 
@@ -452,8 +467,8 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color(0xFF1A0A0A),
-      drawer: isMobile ? _buildMobileDrawer(context, isMobile, isLandscape) : null,
-      appBar: _buildAppBar(context, isMobile),
+      drawer: isMobile ? _buildMobileDrawer(context, isMobile, isLandscape, screenWidth) : null,
+      appBar: _buildAppBar(context, isMobile, screenWidth),
       body: Stack(
         children: [
           Row(
@@ -479,7 +494,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, bool isMobile) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, bool isMobile, double screenWidth) {
     return AppBar(
       toolbarHeight: isMobile ? 70 : 80,
       elevation: 0,
@@ -520,8 +535,8 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
         child: Row(
           children: [
             Container(
-              width: isMobile ? 32 : 40,
-              height: isMobile ? 32 : 40,
+              width: screenWidth < 360 ? 28 : (isMobile ? 32 : 40),
+              height: screenWidth < 360 ? 28 : (isMobile ? 32 : 40),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
@@ -541,7 +556,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
                 isMobile ? 'GM Admin' : 'GM PhoneShoppe Admin',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: isMobile ? 14 : 20,
+                  fontSize: screenWidth < 360 ? 12 : (isMobile ? 14 : 20),
                   fontWeight: FontWeight.bold,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -628,7 +643,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
     );
   }
 
-  Widget _buildDrawerItem(int index, BuildContext ctx) {
+  Widget _buildDrawerItem(int index, BuildContext ctx, double screenWidth) {
     final item = _menuItems[index];
     final isSelected = _selectedIndex == index;
     final gradColor = item.gradientColors.first;
@@ -649,7 +664,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            padding: EdgeInsets.symmetric(horizontal: screenWidth < 360 ? 10 : 14, vertical: 11),
             decoration: BoxDecoration(
               color: isSelected ? gradColor.withValues(alpha: 0.12) : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
@@ -729,7 +744,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
     );
   }
 
-  Widget _buildMobileDrawer(BuildContext context, bool isMobile, bool isLandscape) {
+  Widget _buildMobileDrawer(BuildContext context, bool isMobile, bool isLandscape, double screenWidth) {
     return Drawer(
       backgroundColor: const Color(0xFF0D0D0D),
       shape: const RoundedRectangleBorder(
@@ -841,23 +856,23 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
                 padding: const EdgeInsets.only(top: 4, bottom: 16),
                 children: [
                   _buildDrawerSectionLabel('Services'),
-                  _buildDrawerItem(0, context),
+                  _buildDrawerItem(0, context, screenWidth),
                   if (isLandscape) ...[
-                    _buildDrawerItem(1, context),
-                    _buildDrawerItem(2, context),
-                    _buildDrawerItem(3, context),
+                    _buildDrawerItem(1, context, screenWidth),
+                    _buildDrawerItem(2, context, screenWidth),
+                    _buildDrawerItem(3, context, screenWidth),
                   ],
-                  _buildDrawerItem(4, context),
-                  if (isLandscape) _buildDrawerItem(5, context),
+                  _buildDrawerItem(4, context, screenWidth),
+                  if (isLandscape) _buildDrawerItem(5, context, screenWidth),
                   _buildDrawerSectionLabel('Management'),
-                  _buildDrawerItem(6, context),
-                  _buildDrawerItem(7, context),
-                  _buildDrawerItem(8, context),
-                  _buildDrawerItem(9, context),
-                  _buildDrawerItem(10, context),
+                  _buildDrawerItem(6, context, screenWidth),
+                  _buildDrawerItem(7, context, screenWidth),
+                  _buildDrawerItem(8, context, screenWidth),
+                  _buildDrawerItem(9, context, screenWidth),
+                  _buildDrawerItem(10, context, screenWidth),
                   _buildDrawerSectionLabel('Account'),
-                  _buildDrawerItem(11, context),
-                  _buildDrawerItem(12, context),
+                  _buildDrawerItem(11, context, screenWidth),
+                  _buildDrawerItem(12, context, screenWidth),
                 ],
               ),
             ),
@@ -1276,6 +1291,7 @@ class _MainAdminPageState extends State<MainAdminPage> with TickerProviderStateM
       opacity: _showScrollToTop ? 1.0 : 0.0,
       duration: const Duration(milliseconds: 300),
       child: FloatingActionButton(
+        heroTag: 'adminScrollTop',
         onPressed: _scrollToTop,
         backgroundColor: const Color(0xFF8B1A1A),
         foregroundColor: Colors.white,
@@ -1383,25 +1399,14 @@ class _AdminDashboardPageState extends State<_AdminDashboardPage> {
 
     // Show feedback about what was refreshed
     if (mounted && refreshedCount > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            refreshedCount == services.length
-                ? 'All services refreshed from Firebase'
-                : 'Refreshed $refreshedCount service${refreshedCount > 1 ? 's' : ''} from Firebase',
-          ),
-          duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFF2ECC71),
-        ),
+      SnackBarUtils.showSuccess(
+        context,
+        refreshedCount == services.length
+            ? 'All services refreshed from database'
+            : 'Refreshed $refreshedCount service${refreshedCount > 1 ? 's' : ''} from database',
       );
     } else if (mounted && refreshedCount == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All data is up to date from cache'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Color(0xFF3498DB),
-        ),
-      );
+      SnackBarUtils.showInfo(context, 'All data is up to date from cache');
     }
   }
 
@@ -1656,7 +1661,7 @@ class _AdminDashboardPageState extends State<_AdminDashboardPage> {
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 3,
+                    crossAxisCount: screenWidth < 360 ? 1 : (screenWidth < 600 ? 2 : 3),
                     mainAxisSpacing: isCompact ? 6 : 16,
                     crossAxisSpacing: isCompact ? 6 : 16,
                     childAspectRatio: isCompact ? 2.5 : (isMobile ? 1.0 : 1.8),
@@ -2124,14 +2129,7 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
                               : () async {
                                   final email = emailController.text.trim();
                                   if (email.isEmpty || !email.contains('@')) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text('Please enter a valid email address'),
-                                        backgroundColor: Colors.orange.shade700,
-                                        behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                      ),
-                                    );
+                                    SnackBarUtils.showWarning(context, 'Please enter a valid email address');
                                     return;
                                   }
 
@@ -2140,14 +2138,7 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
                                     final existingPOSUser = _users.any((u) => u['role'] == 'pos');
                                     final pendingPOSInvitation = _pendingInvitations.any((i) => i['role'] == 'pos');
                                     if (existingPOSUser || pendingPOSInvitation) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: const Text('Only one POS user is allowed. Please remove the existing POS user first.'),
-                                          backgroundColor: Colors.orange.shade700,
-                                          behavior: SnackBarBehavior.floating,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                        ),
-                                      );
+                                      SnackBarUtils.showWarning(context, 'Only one POS user is allowed. Please remove the existing POS user first.');
                                       return;
                                     }
                                   }
@@ -2169,14 +2160,7 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
                                   if (token == null) {
                                     setDialogState(() => isSending = false);
                                     if (!context.mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: const Text('User already exists or invitation already sent'),
-                                        backgroundColor: Colors.orange.shade700,
-                                        behavior: SnackBarBehavior.floating,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                      ),
-                                    );
+                                    SnackBarUtils.showWarning(context, 'User already exists or invitation already sent');
                                     return;
                                   }
 
@@ -2194,18 +2178,11 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
                                   if (!context.mounted) return;
                                   Navigator.of(context).pop();
 
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        emailSent
-                                            ? 'Invitation sent to $email!'
-                                            : 'Invitation created! (Email service not configured)',
-                                      ),
-                                      backgroundColor: emailSent ? const Color(0xFF1ABC9C) : Colors.orange.shade700,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                  );
+                                  if (emailSent) {
+                                    SnackBarUtils.showSuccess(context, 'Invitation sent to $email!');
+                                  } else {
+                                    SnackBarUtils.showWarning(context, 'Invitation created! (Email service not configured)');
+                                  }
 
                                   _loadData();
                                 },
@@ -2278,9 +2255,7 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
     if (confirmed == true) {
       await FirebaseDatabaseService.deleteUser(user['id']);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User deleted'), backgroundColor: Colors.green),
-      );
+      SnackBarUtils.showSuccess(context, 'User deleted');
       _loadData();
     }
   }
@@ -2313,13 +2288,12 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
     if (confirmed == true) {
       final success = await FirebaseDatabaseService.updateUser(user['id'], {'role': 'admin'});
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'User promoted to Admin' : 'Failed to promote user'),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
-      if (success) _loadData();
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'User promoted to Admin');
+        _loadData();
+      } else {
+        SnackBarUtils.showError(context, 'Failed to promote user');
+      }
     }
   }
 
@@ -2351,13 +2325,12 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
     if (confirmed == true) {
       final success = await FirebaseDatabaseService.updateUser(user['id'], {'role': 'user'});
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Admin demoted to User' : 'Failed to demote user'),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
-      if (success) _loadData();
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'Admin demoted to User');
+        _loadData();
+      } else {
+        SnackBarUtils.showError(context, 'Failed to demote user');
+      }
     }
   }
 
@@ -2402,19 +2375,13 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
     final hasConnection = await CacheService.hasConnectivity();
     if (!hasConnection) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No internet connection. Cannot reset PIN offline.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showError(context, 'No internet connection. Cannot reset PIN offline.');
       return;
     }
 
     // Show loading
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Resetting PIN...'), backgroundColor: Colors.blue),
-    );
+    if (!mounted) return;
+    SnackBarUtils.showInfo(context, 'Resetting PIN...');
 
     final newPin = await StaffPinService.resetPin(
       userId: userId,
@@ -2425,9 +2392,7 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
     if (!mounted) return;
 
     if (newPin == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to reset PIN'), backgroundColor: Colors.red),
-      );
+      SnackBarUtils.showError(context, 'Failed to reset PIN');
       return;
     }
 
@@ -2444,17 +2409,11 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          emailSent
-              ? 'PIN reset successfully. New PIN sent to $userEmail'
-              : 'PIN reset but failed to send email. New PIN: $newPin',
-        ),
-        backgroundColor: emailSent ? Colors.green : Colors.orange,
-        duration: Duration(seconds: emailSent ? 3 : 8),
-      ),
-    );
+    if (emailSent) {
+      SnackBarUtils.showSuccess(context, 'PIN reset successfully. New PIN sent to $userEmail');
+    } else {
+      SnackBarUtils.showWarning(context, 'PIN reset but failed to send email. New PIN: $newPin', duration: const Duration(seconds: 8));
+    }
   }
 
   Future<void> _deleteInvitation(Map<String, dynamic> invitation) async {
@@ -2485,9 +2444,7 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
     if (confirmed == true) {
       await FirebaseDatabaseService.deleteInvitation(invitation['id']);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invitation cancelled'), backgroundColor: Colors.green),
-      );
+      SnackBarUtils.showSuccess(context, 'Invitation cancelled');
       _loadData();
     }
   }
@@ -2504,14 +2461,11 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
     );
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          emailSent ? 'Invitation resent!' : 'Resend queued (Email service not configured)',
-        ),
-        backgroundColor: emailSent ? Colors.green : Colors.orange,
-      ),
-    );
+    if (emailSent) {
+      SnackBarUtils.showSuccess(context, 'Invitation resent!');
+    } else {
+      SnackBarUtils.showWarning(context, 'Resend queued (Email service not configured)');
+    }
   }
 
   @override
@@ -2680,20 +2634,21 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
   }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color, bool isMobile) {
+    // Match service card styling - rounded and consistent
     return Container(
-      padding: EdgeInsets.all(isMobile ? 12 : 24),
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [color, color.withValues(alpha: 0.7)],
         ),
-        borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
+        borderRadius: BorderRadius.circular(isMobile ? 24 : 40),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.3),
-            blurRadius: isMobile ? 10 : 20,
-            offset: const Offset(0, 8),
+            blurRadius: isMobile ? 6 : 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -2702,29 +2657,29 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: Colors.white, size: 24),
+                  child: Icon(icon, color: Colors.white, size: 22),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   value,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 28,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: -1,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   title,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
@@ -2736,14 +2691,14 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
           : Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(icon, color: Colors.white, size: 32),
+                  child: Icon(icon, color: Colors.white, size: 28),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 14),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2751,17 +2706,17 @@ class _AllUsersPageState extends State<_AllUsersPage> with SingleTickerProviderS
                       value,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 36,
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: -1,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       title,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 15,
+                        fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -3602,13 +3557,11 @@ class _ReportsPageState extends State<_ReportsPage> with SingleTickerProviderSta
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Request approved!' : 'Failed to approve request'),
-          backgroundColor: success ? const Color(0xFF2ECC71) : Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'Request approved!');
+      } else {
+        SnackBarUtils.showError(context, 'Failed to approve request');
+      }
 
       if (success) _loadSuggestions();
     }
@@ -3696,13 +3649,11 @@ class _ReportsPageState extends State<_ReportsPage> with SingleTickerProviderSta
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Request rejected' : 'Failed to reject request'),
-          backgroundColor: success ? const Color(0xFFE74C3C) : Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (success) {
+        SnackBarUtils.showError(context, 'Request rejected');
+      } else {
+        SnackBarUtils.showError(context, 'Failed to reject request');
+      }
 
       if (success) _loadSuggestions();
     }
@@ -3913,7 +3864,7 @@ class _ReportsPageState extends State<_ReportsPage> with SingleTickerProviderSta
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildSuggestionsTab(isMobile),
+                _buildSuggestionsTab(isMobile, screenWidth),
                 _buildUserPerformanceTab(isMobile),
                 _buildLowStockAlertsTab(isMobile),
               ],
@@ -3924,7 +3875,7 @@ class _ReportsPageState extends State<_ReportsPage> with SingleTickerProviderSta
     );
   }
 
-  Widget _buildSuggestionsTab(bool isMobile) {
+  Widget _buildSuggestionsTab(bool isMobile, double screenWidth) {
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
       child: Column(
@@ -3934,7 +3885,7 @@ class _ReportsPageState extends State<_ReportsPage> with SingleTickerProviderSta
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 4,
+            crossAxisCount: screenWidth < 360 ? 1 : (screenWidth < 600 ? 2 : 4),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             childAspectRatio: isMobile ? 0.7 : 1.8,
@@ -5136,7 +5087,8 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = isCompact ? 12.0 : (isMobile ? 24.0 : 40.0);
+    // Reduced sizes to match reports page style
+    final borderRadius = isCompact ? 10.0 : (isMobile ? 10.0 : 16.0);
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
@@ -5151,28 +5103,28 @@ class _StatCard extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            // Rounded rectangle decorative element - hide in compact mode
-            if (!isCompact)
+            // Rounded rectangle decorative element - hide on mobile
+            if (!isCompact && !isMobile)
               Positioned(
-                top: isMobile ? -20 : -30,
-                right: isMobile ? -20 : -30,
+                top: -20,
+                right: -20,
                 child: Container(
-                  width: isMobile ? 80 : 120,
-                  height: isMobile ? 80 : 120,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(isMobile ? 20 : 30),
+                    borderRadius: BorderRadius.circular(15),
                     color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
               ),
             Positioned.fill(
               child: Padding(
-                padding: EdgeInsets.all(isCompact ? 8 : (isMobile ? 10 : 16)),
+                padding: EdgeInsets.all(isCompact ? 6 : (isMobile ? 8 : 14)),
                 child: isCompact
                     ? Row(
                         children: [
-                          Icon(icon, color: Colors.white, size: 16),
-                          const SizedBox(width: 6),
+                          Icon(icon, color: Colors.white, size: 14),
+                          const SizedBox(width: 4),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -5182,7 +5134,7 @@ class _StatCard extends StatelessWidget {
                                   value,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -5190,7 +5142,7 @@ class _StatCard extends StatelessWidget {
                                   title,
                                   style: TextStyle(
                                     color: Colors.white.withValues(alpha: 0.9),
-                                    fontSize: 8,
+                                    fontSize: 7,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -5204,7 +5156,7 @@ class _StatCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(icon, color: Colors.white, size: isMobile ? 20 : 32),
+                          Icon(icon, color: Colors.white, size: isMobile ? 16 : 24),
                           const Spacer(),
                           FittedBox(
                             fit: BoxFit.scaleDown,
@@ -5212,7 +5164,7 @@ class _StatCard extends StatelessWidget {
                               value,
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: isMobile ? 18 : 32,
+                                fontSize: isMobile ? 13 : 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -5222,7 +5174,7 @@ class _StatCard extends StatelessWidget {
                             title,
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: isMobile ? 9 : 14,
+                              fontSize: isMobile ? 8 : 11,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

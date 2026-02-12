@@ -1,11 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../services/printer_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
+import '../services/native_printer_service.dart';
 import '../services/pos_settings_service.dart';
 import '../services/auth_service.dart';
 import '../services/staff_pin_service.dart';
 import '../services/firebase_database_service.dart';
 import '../services/cache_service.dart';
+import '../services/offline_sync_service.dart';
+import '../services/inventory_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class SettingsPage extends StatefulWidget {
   final bool isAdmin;
@@ -20,6 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _vatEnabled = true;
   double _vatRate = 12.0;
   bool _vatInclusive = true;
+  double _cashDrawerOpeningBalance = 0.0;
   bool _isLoadingSettings = true;
 
   // Sort settings for services
@@ -45,13 +52,42 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // Printer state
   bool _isPrinterConnected = false;
-  BluetoothInfo? _connectedDevice;
-  List<BluetoothInfo> _availableDevices = [];
+  String? _connectedPrinterName;
+  String? _connectedPrinterAddress;
+  List<Map<String, String>> _availableDevices = [];
   bool _isScanning = false;
   bool _isConnecting = false;
   bool _isPrinting = false;
   StreamSubscription<bool>? _printerConnectionSubscription;
-  StreamSubscription<List<BluetoothInfo>>? _scanSubscription;
+
+  // Force Sync state
+  bool _isForceSyncing = false;
+  String _forceSyncMessage = '';
+  int _forceSyncCurrent = 0;
+  int _forceSyncTotal = 0;
+
+  // Full Sync state
+  bool _isFullSyncing = false;
+  String _fullSyncMessage = '';
+  String _fullSyncPhase = ''; // 'upload', 'clear', 'download', 'complete'
+
+  // SKU Migration state
+  bool _isRunningMigration = false;
+  String _migrationMessage = '';
+  int _migrationFixed = 0;
+
+  // Keep Screen On (wakelock)
+  bool _keepScreenOn = false;
+
+  // Section expansion states (all collapsed by default)
+  bool _posSettingsExpanded = false;
+  bool _sortSettingsExpanded = false;
+  bool _printerSettingsExpanded = false;
+  bool _staffPinExpanded = false;
+  bool _posAccountPinExpanded = false;
+  bool _dataSyncExpanded = false;
+  bool _skuMigrationExpanded = false;
+  bool _generalSettingsExpanded = false;
 
   @override
   void initState() {
@@ -62,12 +98,12 @@ class _SettingsPageState extends State<SettingsPage> {
       _loadPosAccountPin();
     }
     _initPrinter();
+    _loadKeepScreenOnSetting();
   }
 
   @override
   void dispose() {
     _printerConnectionSubscription?.cancel();
-    _scanSubscription?.cancel();
     super.dispose();
   }
 
@@ -78,6 +114,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _vatEnabled = settings['vatEnabled'] ?? true;
         _vatRate = (settings['vatRate'] as num?)?.toDouble() ?? 12.0;
         _vatInclusive = settings['vatInclusive'] ?? true;
+        _cashDrawerOpeningBalance = (settings['cashDrawerOpeningBalance'] as num?)?.toDouble() ?? 0.0;
         _sortCignal = settings['sortCignal'] ?? 'name_asc';
         _sortSky = settings['sortSky'] ?? 'name_asc';
         _sortSatellite = settings['sortSatellite'] ?? 'name_asc';
@@ -94,12 +131,7 @@ class _SettingsPageState extends State<SettingsPage> {
       'vatInclusive': _vatInclusive,
     });
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('POS Settings saved'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      SnackBarUtils.showSuccess(context, 'POS Settings saved');
     }
   }
 
@@ -177,6 +209,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _showSetPinDialog() async {
     final controller = TextEditingController(text: _currentUserPin ?? '');
     String? errorText;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     final newPin = await showDialog<String>(
       context: context,
@@ -190,51 +223,56 @@ class _SettingsPageState extends State<SettingsPage> {
               Text('Set Staff PIN', style: TextStyle(color: Colors.black)),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Enter a 4-digit PIN for: $_currentUserName',
-                style: const TextStyle(color: Colors.black),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                autofocus: true,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 24,
-                  letterSpacing: 12,
-                  fontWeight: FontWeight.bold,
+          content: SizedBox(
+            width: screenWidth < 360 ? screenWidth * 0.9 : (screenWidth < 500 ? screenWidth * 0.85 : 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Enter a 4-digit PIN for: $_currentUserName',
+                  style: const TextStyle(color: Colors.black),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  hintText: '0000',
-                  hintStyle: TextStyle(color: Colors.black.withValues(alpha: 0.3)),
-                  errorText: errorText,
-                  errorStyle: const TextStyle(color: Colors.redAccent),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.3)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  maxLength: 4,
+                  autofocus: true,
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: screenWidth < 360 ? 18 : 24,
+                    letterSpacing: screenWidth < 360 ? 8 : 12,
+                    fontWeight: FontWeight.bold,
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    hintText: '0000',
+                    hintStyle: TextStyle(color: Colors.black.withValues(alpha: 0.3)),
+                    errorText: errorText,
+                    errorStyle: const TextStyle(color: Colors.redAccent),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF2ECC71), width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.redAccent),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.redAccent),
+                    ),
+                    counterStyle: const TextStyle(color: Colors.black54),
                   ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.redAccent),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.redAccent),
-                  ),
-                  counterStyle: const TextStyle(color: Colors.black54),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -269,12 +307,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final hasConnection = await CacheService.hasConnectivity();
     if (!hasConnection) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No internet connection. Cannot set PIN offline.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showError(context, 'No internet connection. Cannot set PIN offline.');
       return;
     }
 
@@ -288,14 +321,10 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
-      );
+      SnackBarUtils.showError(context, error);
     } else {
       setState(() => _currentUserPin = newPin);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Staff PIN saved'), backgroundColor: Colors.green),
-      );
+      SnackBarUtils.showSuccess(context, 'Staff PIN saved');
     }
   }
 
@@ -304,6 +333,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final controller = TextEditingController(text: _posAccountPin ?? '');
     String? errorText;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     final newPin = await showDialog<String>(
       context: context,
@@ -317,57 +347,62 @@ class _SettingsPageState extends State<SettingsPage> {
               Text('Set POS Account PIN', style: TextStyle(color: Colors.black)),
             ],
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Enter a 4-digit PIN for POS Account:\n$_posAccountName',
-                style: const TextStyle(color: Colors.black),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _posAccountEmail,
-                style: const TextStyle(color: Colors.black54, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                autofocus: true,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 24,
-                  letterSpacing: 12,
-                  fontWeight: FontWeight.bold,
+          content: SizedBox(
+            width: screenWidth < 360 ? screenWidth * 0.9 : (screenWidth < 500 ? screenWidth * 0.85 : 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Enter a 4-digit PIN for POS Account:\n$_posAccountName',
+                  style: const TextStyle(color: Colors.black),
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  hintText: '0000',
-                  hintStyle: TextStyle(color: Colors.black.withValues(alpha: 0.3)),
-                  errorText: errorText,
-                  errorStyle: const TextStyle(color: Colors.redAccent),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.3)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFFE67E22), width: 2),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.redAccent),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.redAccent),
-                  ),
-                  counterStyle: const TextStyle(color: Colors.black54),
+                const SizedBox(height: 8),
+                Text(
+                  _posAccountEmail,
+                  style: const TextStyle(color: Colors.black54, fontSize: 12),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  maxLength: 4,
+                  autofocus: true,
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: screenWidth < 360 ? 18 : 24,
+                    letterSpacing: screenWidth < 360 ? 8 : 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  decoration: InputDecoration(
+                    hintText: '0000',
+                    hintStyle: TextStyle(color: Colors.black.withValues(alpha: 0.3)),
+                    errorText: errorText,
+                    errorStyle: const TextStyle(color: Colors.redAccent),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.3)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE67E22), width: 2),
+                    ),
+                    errorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.redAccent),
+                    ),
+                    focusedErrorBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.redAccent),
+                    ),
+                    counterStyle: const TextStyle(color: Colors.black54),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -402,12 +437,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final hasConnection = await CacheService.hasConnectivity();
     if (!hasConnection) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No internet connection. Cannot set PIN offline.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showError(context, 'No internet connection. Cannot set PIN offline.');
       return;
     }
 
@@ -421,56 +451,78 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
 
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
-      );
+      SnackBarUtils.showError(context, error);
     } else {
       setState(() => _posAccountPin = newPin);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('POS Account PIN saved'), backgroundColor: Colors.green),
-      );
+      SnackBarUtils.showSuccess(context, 'POS Account PIN saved');
     }
   }
 
   void _initPrinter() {
-    PrinterService.initialize();
-    _isPrinterConnected = PrinterService.isConnected;
-    _connectedDevice = PrinterService.connectedDevice;
+    NativePrinterService.initialize();
+    _isPrinterConnected = NativePrinterService.isConnected;
+    _connectedPrinterName = NativePrinterService.connectedName;
+    _connectedPrinterAddress = NativePrinterService.connectedAddress;
 
     _printerConnectionSubscription =
-        PrinterService.connectionStatusStream.listen((connected) {
+        NativePrinterService.connectionStatusStream.listen((connected) {
       if (mounted) {
         setState(() {
           _isPrinterConnected = connected;
-          _connectedDevice = PrinterService.connectedDevice;
+          _connectedPrinterName = NativePrinterService.connectedName;
+          _connectedPrinterAddress = NativePrinterService.connectedAddress;
         });
       }
     });
   }
 
-  Future<void> _startScan() async {
-    final isAvailable = await PrinterService.isBluetoothAvailable();
-    if (!isAvailable) {
+  Future<bool> _requestBluetoothPermissions() async {
+    final connectStatus = await Permission.bluetoothConnect.request();
+    final scanStatus = await Permission.bluetoothScan.request();
+
+    if (connectStatus.isDenied || scanStatus.isDenied) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bluetooth is not available on this device'),
-            backgroundColor: Colors.red,
+        SnackBarUtils.showWarning(context, 'Bluetooth permissions are required to find printers');
+      }
+      return false;
+    }
+
+    if (connectStatus.isPermanentlyDenied || scanStatus.isPermanentlyDenied) {
+      if (mounted) {
+        SnackBarUtils.showTopSnackBar(
+          context,
+          message: 'Bluetooth permissions denied. Please enable in Settings.',
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Open Settings',
+            textColor: Colors.white,
+            onPressed: () => openAppSettings(),
           ),
         );
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _startScan() async {
+    // Request runtime Bluetooth permissions (required on Android 12+)
+    final hasPermissions = await _requestBluetoothPermissions();
+    if (!hasPermissions) return;
+
+    final isAvailable = await NativePrinterService.isBluetoothAvailable();
+    if (!isAvailable) {
+      if (mounted) {
+        SnackBarUtils.showError(context, 'Bluetooth is not available on this device');
       }
       return;
     }
 
-    final isOn = await PrinterService.isBluetoothOn();
+    final isOn = await NativePrinterService.isBluetoothEnabled();
     if (!isOn) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please turn on Bluetooth'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackBarUtils.showWarning(context, 'Please turn on Bluetooth');
       }
       return;
     }
@@ -480,8 +532,8 @@ class _SettingsPageState extends State<SettingsPage> {
       _availableDevices = [];
     });
 
-    // Get paired devices (this package uses paired devices instead of scanning)
-    final devices = await PrinterService.getPairedDevices();
+    // Get paired devices
+    final devices = await NativePrinterService.getPairedDevices();
 
     if (mounted) {
       setState(() {
@@ -491,74 +543,632 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _connectToDevice(BluetoothInfo device) async {
+  Future<void> _connectToDevice(Map<String, String> device) async {
     setState(() => _isConnecting = true);
 
-    final success = await PrinterService.connectToDevice(device);
+    final address = device['address'] ?? '';
+    final name = device['name'] ?? 'Unknown';
+    final success = await NativePrinterService.connect(address, name: name);
 
     if (mounted) {
       setState(() => _isConnecting = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? 'Connected to ${device.name}'
-                : 'Failed to connect to ${device.name}',
-          ),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'Connected to $name');
+      } else {
+        SnackBarUtils.showError(context, 'Failed to connect to $name');
+      }
     }
   }
 
   Future<void> _disconnectPrinter() async {
-    await PrinterService.disconnect();
+    await NativePrinterService.disconnect();
   }
 
   Future<void> _printTestReceipt() async {
     setState(() => _isPrinting = true);
 
-    final success = await PrinterService.printTestReceipt();
+    final success = await NativePrinterService.printTestReceipt();
 
     if (mounted) {
       setState(() => _isPrinting = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success ? 'Test receipt printed!' : 'Failed to print test receipt',
-          ),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'Test receipt printed!');
+      } else {
+        SnackBarUtils.showError(context, 'Failed to print test receipt');
+      }
     }
   }
 
   Future<void> _openCashDrawer() async {
-    final success = await PrinterService.openCashDrawer();
+    final success = await NativePrinterService.openCashDrawer();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success ? 'Cash drawer opened!' : 'Failed to open cash drawer',
-          ),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
+      if (success) {
+        SnackBarUtils.showSuccess(context, 'Cash drawer opened!');
+      } else {
+        SnackBarUtils.showError(context, 'Failed to open cash drawer');
+      }
     }
   }
 
   Future<void> _forgetPrinter() async {
-    await PrinterService.forgetSavedPrinter();
+    await NativePrinterService.forgetSavedPrinter();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Printer forgotten'),
-          backgroundColor: Colors.orange,
+      SnackBarUtils.showWarning(context, 'Printer forgotten');
+    }
+  }
+
+  Future<void> _forceSync() async {
+    if (_isForceSyncing) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Row(
+          children: [
+            Icon(Icons.cloud_upload, color: Color(0xFF3498DB)),
+            SizedBox(width: 8),
+            Text('Force Sync', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'This will upload ALL local data to Firebase. This may take a while depending on the amount of data.\n\nContinue?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3498DB)),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sync Now', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _isForceSyncing = true;
+      _forceSyncMessage = 'Starting sync...';
+      _forceSyncCurrent = 0;
+      _forceSyncTotal = 0;
+    });
+
+    final result = await OfflineSyncService.forceFullUpload(
+      onProgress: (message, current, total) {
+        if (mounted) {
+          setState(() {
+            _forceSyncMessage = message;
+            _forceSyncCurrent = current;
+            _forceSyncTotal = total;
+          });
+        }
+      },
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isForceSyncing = false;
+      _forceSyncMessage = '';
+      _forceSyncCurrent = 0;
+      _forceSyncTotal = 0;
+    });
+
+    if (result.success) {
+      SnackBarUtils.showSuccess(context, result.message, duration: const Duration(seconds: 4));
+    } else {
+      SnackBarUtils.showError(context, result.message, duration: const Duration(seconds: 4));
+    }
+  }
+
+  Future<void> _refreshFromFirebase() async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Row(
+          children: [
+            Icon(Icons.cloud_download, color: Color(0xFF2ECC71)),
+            SizedBox(width: 8),
+            Text('Refresh from Firebase', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'This will:\n'
+          '• Clear all local cached data\n'
+          '• Download fresh data from Firebase\n'
+          '• Fix inventory count discrepancies\n\n'
+          'This may take a few moments. Continue?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2ECC71)),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Refresh Now', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    // Show loading dialog
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PopScope(
+          canPop: false,
+          child: const AlertDialog(
+            backgroundColor: Color(0xFF2A2A2A),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(color: Color(0xFF2ECC71)),
+                SizedBox(height: 16),
+                Text(
+                  'Refreshing data from Firebase...',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          ),
         ),
       );
+    }
+
+    try {
+      // Clear all caches
+      await CacheService.clearAllCache();
+
+      // Force refresh from Firebase
+      InventoryService.forceRefresh();
+
+      // Re-initialize cache service
+      await CacheService.initialize();
+
+      if (!mounted) return;
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show success message with instruction
+      SnackBarUtils.showSuccess(
+        context,
+        'Cache cleared successfully! Pull down to refresh on any page to load fresh data.',
+        duration: const Duration(seconds: 5),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+      SnackBarUtils.showError(context, 'Error refreshing data: $e');
+    }
+  }
+
+  Future<void> _fullBidirectionalSync() async {
+    if (_isFullSyncing) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Row(
+          children: [
+            Icon(Icons.sync, color: Color(0xFF9B59B6)),
+            SizedBox(width: 8),
+            Text('Full Bi-Directional Sync', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'This will perform a complete sync:\n\n'
+          '1️⃣ Upload all local changes to Firebase\n'
+          '2️⃣ Clear local cache\n'
+          '3️⃣ Download fresh data from Firebase\n'
+          '4️⃣ Update all pages automatically\n\n'
+          'This ensures your device has the absolute latest data.\n\n'
+          'Continue?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9B59B6)),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Full Sync', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _isFullSyncing = true;
+      _fullSyncPhase = 'upload';
+      _fullSyncMessage = 'Uploading local changes...';
+    });
+
+    int uploadedCount = 0;
+    int downloadedCount = 0;
+
+    try {
+      // Phase 1: Upload all local changes to Firebase
+      setState(() {
+        _fullSyncPhase = 'upload';
+        _fullSyncMessage = 'Uploading local changes to Firebase...';
+      });
+
+      final uploadResult = await OfflineSyncService.forceFullUpload(
+        onProgress: (message, current, total) {
+          if (mounted) {
+            setState(() {
+              _fullSyncMessage = 'Uploading: $message ($current/$total)';
+            });
+          }
+        },
+      );
+
+      if (!mounted) return;
+
+      if (uploadResult.success) {
+        uploadedCount = uploadResult.syncResult?.results?.values.fold<int>(
+          0, (sum, r) => sum + r.syncedCount
+        ) ?? 0;
+      }
+
+      // Phase 2: Clear local cache
+      setState(() {
+        _fullSyncPhase = 'clear';
+        _fullSyncMessage = 'Clearing local cache...';
+      });
+
+      await Future.delayed(const Duration(milliseconds: 500)); // Brief pause for UX
+      await CacheService.clearAllCache();
+
+      if (!mounted) return;
+
+      // Phase 3: Download fresh data from Firebase
+      setState(() {
+        _fullSyncPhase = 'download';
+        _fullSyncMessage = 'Downloading fresh data from Firebase...';
+      });
+
+      // Force refresh from Firebase
+      InventoryService.forceRefresh();
+
+      // Re-initialize cache
+      await CacheService.initialize();
+
+      // Get fresh inventory count
+      final freshItems = await InventoryService.getAllItems();
+      downloadedCount = freshItems.length;
+
+      if (!mounted) return;
+
+      // Phase 4: Complete
+      setState(() {
+        _fullSyncPhase = 'complete';
+        _fullSyncMessage = 'Sync complete!';
+      });
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      setState(() {
+        _isFullSyncing = false;
+        _fullSyncMessage = '';
+        _fullSyncPhase = '';
+      });
+
+      // Show success dialog with summary
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Color(0xFF2ECC71), size: 28),
+              SizedBox(width: 12),
+              Text('Sync Complete!', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '✅ Uploaded: $uploadedCount items to Firebase',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '✅ Downloaded: $downloadedCount items from Firebase',
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2ECC71).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF2ECC71).withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFF2ECC71), size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Your device now has the latest data from Firebase!',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2ECC71)),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Done', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isFullSyncing = false;
+        _fullSyncMessage = '';
+        _fullSyncPhase = '';
+      });
+
+      SnackBarUtils.showError(
+        context,
+        'Sync error: $e',
+        duration: const Duration(seconds: 5),
+      );
+    }
+  }
+
+  Future<void> _runSkuMigration() async {
+    if (_isRunningMigration) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2A2A2A),
+        title: const Row(
+          children: [
+            Icon(Icons.autorenew, color: Color(0xFFE67E22)),
+            SizedBox(width: 8),
+            Text('Force SKU Migration', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+        content: const Text(
+          'This will scan all inventory items and:\n\n'
+          '• Find duplicate serial numbers (SKUs)\n'
+          '• Generate new random SKUs for duplicates\n'
+          '• Update them in the database\n'
+          '• Log items that need label reprinting\n\n'
+          'This operation is safe and can be run multiple times.\n\n'
+          'Continue?',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE67E22)),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Run Migration', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _isRunningMigration = true;
+      _migrationMessage = 'Scanning for duplicate SKUs...';
+      _migrationFixed = 0;
+    });
+
+    try {
+      // Run the migration with force=true
+      final report = await InventoryService.runDuplicateSkuMigration(force: true);
+
+      if (!mounted) return;
+
+      final success = report['success'] as bool? ?? false;
+      final duplicatesFound = report['duplicatesFound'] as int? ?? 0;
+      final itemsFixed = report['itemsFixed'] as int? ?? 0;
+      final offline = report['offline'] as bool? ?? false;
+      final lockedByOther = report['lockedByOther'] as bool? ?? false;
+
+      setState(() {
+        _isRunningMigration = false;
+        _migrationMessage = '';
+        _migrationFixed = itemsFixed;
+      });
+
+      // Show result dialog
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: Row(
+            children: [
+              Icon(
+                success ? Icons.check_circle : Icons.error,
+                color: success ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C),
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                success ? 'Migration Complete!' : 'Migration Failed',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (offline)
+                const Text(
+                  '❌ Device is offline. Migration requires internet connection.',
+                  style: TextStyle(color: Color(0xFFE74C3C), fontSize: 14),
+                )
+              else if (lockedByOther)
+                const Text(
+                  '⏳ Migration is already running on another device. Please wait.',
+                  style: TextStyle(color: Color(0xFFF39C12), fontSize: 14),
+                )
+              else if (success) ...[
+                Text(
+                  '🔍 Duplicates Found: $duplicatesFound',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '✅ Items Fixed: $itemsFixed',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                if (itemsFixed > 0) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE67E22).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE67E22).withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.print, color: Color(0xFFE67E22), size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Items with new SKUs need new labels. Check Label Printing page.',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2ECC71).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF2ECC71).withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.check_circle_outline, color: Color(0xFF2ECC71), size: 18),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No duplicate SKUs found. All serial numbers are unique!',
+                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ] else
+                Text(
+                  'Error: ${report['error'] ?? 'Unknown error'}',
+                  style: const TextStyle(color: Color(0xFFE74C3C), fontSize: 14),
+                ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: success ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Done', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isRunningMigration = false;
+        _migrationMessage = '';
+      });
+
+      SnackBarUtils.showError(
+        context,
+        'Migration error: $e',
+        duration: const Duration(seconds: 5),
+      );
+    }
+  }
+
+  Future<void> _loadKeepScreenOnSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keepOn = prefs.getBool('keep_screen_on') ?? false;
+    if (mounted) {
+      setState(() => _keepScreenOn = keepOn);
+    }
+    // Apply the setting
+    if (keepOn) {
+      await WakelockPlus.enable();
+    }
+  }
+
+  Future<void> _toggleKeepScreenOn(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('keep_screen_on', value);
+
+    if (value) {
+      await WakelockPlus.enable();
+    } else {
+      await WakelockPlus.disable();
+    }
+
+    if (mounted) {
+      setState(() => _keepScreenOn = value);
+      SnackBarUtils.showSuccess(context, value ? 'Screen will stay on' : 'Screen timeout restored');
     }
   }
 
@@ -604,9 +1214,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 24),
 
                   // POS Settings Section
-                  _buildSectionHeader('POS Settings', Icons.point_of_sale, const [Color(0xFFE67E22), Color(0xFFD35400)]),
-                  const SizedBox(height: 12),
-                  _buildSettingsCard(
+                  _buildCollapsibleSection(
+                    title: 'POS Settings',
+                    icon: Icons.point_of_sale,
+                    gradient: const [Color(0xFFE67E22), Color(0xFFD35400)],
+                    isExpanded: _posSettingsExpanded,
+                    onToggle: (value) => setState(() => _posSettingsExpanded = value),
                     children: [
                       // VAT Enabled Toggle
                       _buildSettingsTile(
@@ -691,15 +1304,142 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                       ],
+                      // Cash Drawer Opening Balance - Admin Only
+                      if (widget.isAdmin) ...[
+                        Divider(color: Colors.white.withValues(alpha: 0.1)),
+                        Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF27AE60), Color(0xFF1E8449)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(Icons.point_of_sale, color: Colors.white, size: 20),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Cash Drawer Opening Balance',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Starting cash amount in drawer',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                const Text(
+                                  '₱',
+                                  style: TextStyle(
+                                    color: Color(0xFF27AE60),
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextFormField(
+                                    initialValue: _cashDrawerOpeningBalance.toStringAsFixed(2),
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: '0.00',
+                                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                                      filled: true,
+                                      fillColor: Colors.white.withValues(alpha: 0.1),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                    ),
+                                    onChanged: (value) {
+                                      final parsed = double.tryParse(value) ?? 0.0;
+                                      setState(() => _cashDrawerOpeningBalance = parsed);
+                                    },
+                                    onFieldSubmitted: (value) async {
+                                      final parsed = double.tryParse(value) ?? 0.0;
+                                      await POSSettingsService.setCashDrawerOpeningBalance(parsed);
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Opening balance saved'),
+                                            backgroundColor: Color(0xFF27AE60),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: () async {
+                                    await POSSettingsService.setCashDrawerOpeningBalance(_cashDrawerOpeningBalance);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Opening balance saved'),
+                                          backgroundColor: Color(0xFF27AE60),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF27AE60),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Text('Save'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      ], // End of admin-only Cash Drawer section
                     ],
                   ),
 
-                  const SizedBox(height: 32),
-
                   // Service Sort Settings Section
-                  _buildSectionHeader('Service Sort Settings', Icons.sort, const [Color(0xFF9B59B6), Color(0xFF8E44AD)]),
-                  const SizedBox(height: 12),
-                  _buildSettingsCard(
+                  _buildCollapsibleSection(
+                    title: 'Service Sort Settings',
+                    icon: Icons.sort,
+                    gradient: const [Color(0xFF9B59B6), Color(0xFF8E44AD)],
+                    isExpanded: _sortSettingsExpanded,
+                    onToggle: (value) => setState(() => _sortSettingsExpanded = value),
                     children: [
                       _buildSortDropdown(
                         label: 'Cignal',
@@ -747,12 +1487,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
 
-                  const SizedBox(height: 32),
-
                   // Printer Settings Section
-                  _buildSectionHeader('Printer Settings', Icons.print, const [Color(0xFF3498DB), Color(0xFF2980B9)]),
-                  const SizedBox(height: 12),
-                  _buildSettingsCard(
+                  _buildCollapsibleSection(
+                    title: 'Printer Settings',
+                    icon: Icons.print,
+                    gradient: const [Color(0xFF3498DB), Color(0xFF2980B9)],
+                    isExpanded: _printerSettingsExpanded,
+                    onToggle: (value) => setState(() => _printerSettingsExpanded = value),
                     children: [
                       // Printer Connection Status
                       Container(
@@ -788,9 +1529,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                       fontSize: 16,
                                     ),
                                   ),
-                                  if (_isPrinterConnected && _connectedDevice != null)
+                                  if (_isPrinterConnected && _connectedPrinterName != null)
                                     Text(
-                                      _connectedDevice!.name,
+                                      _connectedPrinterName!,
                                       style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
                                     ),
                                 ],
@@ -892,8 +1633,10 @@ class _SettingsPageState extends State<SettingsPage> {
                                       itemCount: _availableDevices.length,
                                       itemBuilder: (context, index) {
                                         final device = _availableDevices[index];
+                                        final deviceAddress = device['address'] ?? '';
+                                        final deviceName = device['name'] ?? 'Unknown';
                                         final isCurrentDevice =
-                                            _connectedDevice?.macAdress == device.macAdress;
+                                            _connectedPrinterAddress == deviceAddress;
 
                                         return ListTile(
                                           leading: Icon(
@@ -903,7 +1646,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                                 : Colors.white.withValues(alpha: 0.6),
                                           ),
                                           title: Text(
-                                            device.name,
+                                            deviceName,
                                             style: TextStyle(
                                               color: Colors.white,
                                               fontWeight: isCurrentDevice
@@ -912,7 +1655,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                             ),
                                           ),
                                           subtitle: Text(
-                                            device.macAdress,
+                                            deviceAddress,
                                             style: TextStyle(
                                               color: Colors.white.withValues(alpha: 0.5),
                                               fontSize: 12,
@@ -1000,16 +1743,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     ],
                   ),
 
-                  const SizedBox(height: 32),
-
                   // Staff PIN Section - User's own PIN
-                  _buildSectionHeader(
-                    'Staff PIN',
-                    Icons.pin,
-                    const [Color(0xFF2ECC71), Color(0xFF27AE60)],
-                  ),
-                  const SizedBox(height: 12),
-                  _buildSettingsCard(
+                  _buildCollapsibleSection(
+                    title: 'Staff PIN',
+                    icon: Icons.pin,
+                    gradient: const [Color(0xFF2ECC71), Color(0xFF27AE60)],
+                    isExpanded: _staffPinExpanded,
+                    onToggle: (value) => setState(() => _staffPinExpanded = value),
                     children: [
                       _buildSettingsTile(
                         icon: Icons.lock,
@@ -1036,15 +1776,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
 
                   // POS Account PIN Section - Admin only
-                  if (widget.isAdmin) ...[
-                    const SizedBox(height: 32),
-                    _buildSectionHeader(
-                      'POS Account PIN',
-                      Icons.point_of_sale,
-                      const [Color(0xFFE67E22), Color(0xFFD35400)],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildSettingsCard(
+                  if (widget.isAdmin)
+                    _buildCollapsibleSection(
+                      title: 'POS Account PIN',
+                      icon: Icons.point_of_sale,
+                      gradient: const [Color(0xFFE67E22), Color(0xFFD35400)],
+                      isExpanded: _posAccountPinExpanded,
+                      onToggle: (value) => setState(() => _posAccountPinExpanded = value),
                       children: [
                         _buildSettingsTile(
                           icon: Icons.point_of_sale,
@@ -1075,15 +1813,443 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ],
                     ),
-                  ],
 
-                  const SizedBox(height: 32),
-
-                  // Other Settings Section
-                  _buildSectionHeader('General Settings', Icons.settings, const [Color(0xFF9B59B6), Color(0xFF8E44AD)]),
-                  const SizedBox(height: 12),
-                  _buildSettingsCard(
+                  // Data Sync Section
+                  _buildCollapsibleSection(
+                    title: 'Data Sync',
+                    icon: Icons.cloud_sync,
+                    gradient: const [Color(0xFF3498DB), Color(0xFF2980B9)],
+                    isExpanded: _dataSyncExpanded,
+                    onToggle: (value) => setState(() => _dataSyncExpanded = value),
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF3498DB), Color(0xFF2980B9)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.cloud_upload, color: Colors.white, size: 28),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Force Sync to Cloud',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        _isForceSyncing
+                                            ? _forceSyncMessage
+                                            : 'Upload all local data to Firebase',
+                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (!_isForceSyncing)
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF3498DB),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    ),
+                                    onPressed: _forceSync,
+                                    icon: const Icon(Icons.sync, size: 18),
+                                    label: const Text('Sync'),
+                                  ),
+                              ],
+                            ),
+                            if (_isForceSyncing) ...[
+                              const SizedBox(height: 16),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: LinearProgressIndicator(
+                                  value: _forceSyncTotal > 0 ? _forceSyncCurrent / _forceSyncTotal : null,
+                                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3498DB)),
+                                  minHeight: 8,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _forceSyncTotal > 0
+                                    ? '$_forceSyncCurrent / $_forceSyncTotal items'
+                                    : 'Preparing...',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.1)),
+                      Container(
+                        margin: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3498DB).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF3498DB).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: const Color(0xFF3498DB).withValues(alpha: 0.8), size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Force sync uploads all local inventory, customers, suggestions, and GSAT activations to Firebase. Use this if data seems out of sync.',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.1)),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF2ECC71), Color(0xFF27AE60)],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.cloud_download, color: Colors.white, size: 28),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Refresh from Firebase',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Clear cache & download latest data',
+                                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2ECC71),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              ),
+                              onPressed: _refreshFromFirebase,
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: const Text('Refresh'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16).copyWith(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2ECC71).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF2ECC71).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, color: const Color(0xFF2ECC71).withValues(alpha: 0.8), size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Use this if different devices show different inventory counts. This clears local cache and downloads fresh data from Firebase.',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.1)),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF9B59B6), Color(0xFF8E44AD)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(Icons.sync, color: Colors.white, size: 28),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Full Bi-Directional Sync',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        _isFullSyncing
+                                            ? _fullSyncMessage
+                                            : 'Upload → Clear → Download (Recommended)',
+                                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (!_isFullSyncing)
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF9B59B6),
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    ),
+                                    onPressed: _fullBidirectionalSync,
+                                    icon: const Icon(Icons.sync, size: 18),
+                                    label: const Text('Full Sync'),
+                                  ),
+                              ],
+                            ),
+                            if (_isFullSyncing) ...[
+                              const SizedBox(height: 16),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: LinearProgressIndicator(
+                                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF9B59B6)),
+                                  minHeight: 8,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (_fullSyncPhase == 'upload')
+                                    const Icon(Icons.cloud_upload, color: Color(0xFF9B59B6), size: 16),
+                                  if (_fullSyncPhase == 'clear')
+                                    const Icon(Icons.delete_sweep, color: Color(0xFF9B59B6), size: 16),
+                                  if (_fullSyncPhase == 'download')
+                                    const Icon(Icons.cloud_download, color: Color(0xFF9B59B6), size: 16),
+                                  if (_fullSyncPhase == 'complete')
+                                    const Icon(Icons.check_circle, color: Color(0xFF2ECC71), size: 16),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      _fullSyncMessage,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                        fontSize: 12,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16).copyWith(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF9B59B6).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF9B59B6).withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.recommend, color: const Color(0xFF9B59B6).withValues(alpha: 0.8), size: 18),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'RECOMMENDED: Best solution for inventory count discrepancies. Ensures your device has the exact same data as Firebase.',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // SKU Migration Section (Admin Only)
+                  if (widget.isAdmin)
+                    _buildCollapsibleSection(
+                      title: 'SKU Migration',
+                      icon: Icons.autorenew,
+                      gradient: const [Color(0xFFE67E22), Color(0xFFD35400)],
+                      isExpanded: _skuMigrationExpanded,
+                      onToggle: (value) => setState(() => _skuMigrationExpanded = value),
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFE67E22), Color(0xFFD35400)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Fix Duplicate SKUs',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    Text(
+                                      _isRunningMigration
+                                          ? _migrationMessage
+                                          : 'Scan & fix duplicate serial numbers',
+                                      style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (!_isRunningMigration)
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFE67E22),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  ),
+                                  onPressed: _runSkuMigration,
+                                  icon: const Icon(Icons.autorenew, size: 18),
+                                  label: const Text('Run'),
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (_isRunningMigration) ...[
+                          const SizedBox(height: 16),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: const LinearProgressIndicator(
+                                backgroundColor: Colors.white24,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFE67E22)),
+                                minHeight: 8,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              'Scanning for duplicates...',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.5),
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        Divider(color: Colors.white.withValues(alpha: 0.1)),
+                        Container(
+                          margin: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE67E22).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE67E22).withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline, color: const Color(0xFFE67E22).withValues(alpha: 0.8), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'This scans all inventory items and generates new random SKUs for any duplicates found. Items with new SKUs will need new labels.',
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  // General Settings Section
+                  _buildCollapsibleSection(
+                    title: 'General Settings',
+                    icon: Icons.settings,
+                    gradient: const [Color(0xFF9B59B6), Color(0xFF8E44AD)],
+                    isExpanded: _generalSettingsExpanded,
+                    onToggle: (value) => setState(() => _generalSettingsExpanded = value),
+                    children: [
+                      _buildSettingsTile(
+                        icon: Icons.screen_lock_portrait,
+                        iconGradient: const [Color(0xFF2ECC71), Color(0xFF27AE60)],
+                        title: 'Keep Screen On',
+                        subtitle: _keepScreenOn
+                            ? 'Screen will stay awake'
+                            : 'Prevent screen from turning off',
+                        trailing: Switch(
+                          value: _keepScreenOn,
+                          onChanged: _toggleKeepScreenOn,
+                          activeColor: const Color(0xFF2ECC71),
+                        ),
+                      ),
+                      Divider(color: Colors.white.withValues(alpha: 0.1)),
                       _buildSettingsTile(
                         icon: Icons.notifications,
                         iconGradient: const [Color(0xFF8B1A1A), Color(0xFF5C0F0F)],
@@ -1095,45 +2261,12 @@ class _SettingsPageState extends State<SettingsPage> {
                           activeColor: const Color(0xFF2ECC71),
                         ),
                       ),
-                      Divider(color: Colors.white.withValues(alpha: 0.1)),
-                      _buildSettingsTile(
-                        icon: Icons.backup,
-                        iconGradient: const [Color(0xFF1ABC9C), Color(0xFF16A085)],
-                        title: 'Backup & Restore',
-                        subtitle: 'Data management',
-                        trailing: const Icon(Icons.chevron_right, color: Colors.white),
-                        onTap: () {},
-                      ),
                     ],
                   ),
                 ],
               ),
             ),
           ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, IconData icon, List<Color> gradient) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: gradient),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: Colors.white, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1153,6 +2286,71 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         child: Column(children: children),
       ),
+    );
+  }
+
+  Widget _buildCollapsibleSection({
+    required String title,
+    required IconData icon,
+    required List<Color> gradient,
+    required bool isExpanded,
+    required ValueChanged<bool> onToggle,
+    required List<Widget> children,
+  }) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    return Column(
+      children: [
+        // Header with tap to expand/collapse
+        GestureDetector(
+          onTap: () => onToggle(!isExpanded),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: gradient),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: screenWidth < 360 ? 16 : 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                AnimatedRotation(
+                  turns: isExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Icons.keyboard_arrow_down,
+                    color: Colors.white.withValues(alpha: 0.7),
+                    size: 28,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Animated content
+        AnimatedCrossFade(
+          firstChild: const SizedBox(width: double.infinity, height: 0),
+          secondChild: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: _buildSettingsCard(children: children),
+          ),
+          crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 200),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 

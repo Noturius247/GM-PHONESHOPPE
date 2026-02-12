@@ -88,6 +88,23 @@
             "timestamp": {
               ".validate": "newData.isNumber()"
             }
+          },
+          "indayQuantity": {
+            ".validate": "newData.isNumber()"
+          },
+          "lastIndayUpdatedBy": {
+            "email": {
+              ".validate": "newData.isString()"
+            },
+            "name": {
+              ".validate": "newData.isString()"
+            },
+            "timestamp": {
+              ".validate": "newData.isNumber()"
+            },
+            "action": {
+              ".validate": "newData.isString()"
+            }
           }
         }
       }
@@ -180,7 +197,11 @@
         "vatEnabled": { ".validate": "newData.isBoolean()" },
         "vatRate": { ".validate": "newData.isNumber()" },
         "vatInclusive": { ".validate": "newData.isBoolean()" },
-        "vatAmount": { ".validate": "newData.isNumber()" }
+        "vatAmount": { ".validate": "newData.isNumber()" },
+        "hasDiscounts": { ".validate": "newData.isBoolean()" },
+        "discountAuthorizedBy": { ".validate": "newData.isString()" },
+        "discountAuthorizedByEmail": { ".validate": "newData.isString()" },
+        "discountAuthorizedByUserId": { ".validate": "newData.isString()" }
       }
     },
     "pos_baskets": {
@@ -192,10 +213,11 @@
         "basketNumber": { ".validate": "newData.isNumber()" },
         "userEmail": { ".validate": "newData.isString()" },
         "userName": { ".validate": "newData.isString()" },
+        "customerName": { ".validate": "newData.isString()" },
         "items": { ".validate": "newData.hasChildren()" },
         "total": { ".validate": "newData.isNumber()" },
         "itemCount": { ".validate": "newData.isNumber()" },
-        "status": { ".validate": "newData.isString() && (newData.val() == 'pending' || newData.val() == 'processing')" },
+        "status": { ".validate": "newData.isString() && (newData.val() == 'pending' || newData.val() == 'processing' || newData.val() == 'completed')" },
         "createdAt": { ".validate": "newData.isNumber()" },
         "updatedAt": { ".validate": "newData.isNumber()" }
       }
@@ -205,7 +227,8 @@
       ".write": "auth != null",
       "vatEnabled": { ".validate": "newData.isBoolean()" },
       "vatRate": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
-      "vatInclusive": { ".validate": "newData.isBoolean()" }
+      "vatInclusive": { ".validate": "newData.isBoolean()" },
+      "cashDrawerOpeningBalance": { ".validate": "newData.isNumber() && newData.val() >= 0" }
     },
     "pos_item_requests": {
       ".read": "auth != null",
@@ -381,6 +404,34 @@
               ".validate": "newData.isString()"
             }
           }
+        }
+      }
+    },
+    "stock_alerts": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["timestamp"]
+    },
+    "system": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "sku_migration_version": {
+        ".validate": "newData.isNumber()"
+      },
+      "sku_migration_lock": {
+        "deviceId": { ".validate": "newData.isString()" },
+        "lockedAt": { ".validate": "newData.isNumber()" }
+      },
+      "sku_migration_log": {
+        ".indexOn": ["needsReprint", "migratedAt"],
+        "$logId": {
+          "itemId": { ".validate": "newData.isString()" },
+          "itemName": { ".validate": "newData.isString()" },
+          "category": { ".validate": "newData.isString()" },
+          "oldSku": { ".validate": "newData.isString()" },
+          "newSku": { ".validate": "newData.isString()" },
+          "migratedAt": { ".validate": "newData.isNumber()" },
+          "needsReprint": { ".validate": "newData.isBoolean()" }
         }
       }
     }

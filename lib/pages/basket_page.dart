@@ -5,6 +5,7 @@ import '../services/inventory_service.dart';
 import '../services/auth_service.dart';
 import 'ocr_scanner_page.dart';
 import '../services/beep_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class BasketPage extends StatefulWidget {
   const BasketPage({super.key});
@@ -66,9 +67,7 @@ class _BasketPageState extends State<BasketPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading inventory: $e')),
-        );
+        SnackBarUtils.showError(context, 'Error loading inventory: $e');
       }
     }
   }
@@ -95,16 +94,14 @@ class _BasketPageState extends State<BasketPage> {
       }
 
       // Sort by basket number
-      baskets.sort((a, b) => (a['basketNumber'] as int).compareTo(b['basketNumber'] as int));
+      baskets.sort((a, b) => ((a['basketNumber'] as num?)?.toInt() ?? 0).compareTo((b['basketNumber'] as num?)?.toInt() ?? 0));
 
       setState(() {
         _userBaskets = baskets;
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading baskets: $e')),
-        );
+        SnackBarUtils.showError(context, 'Error loading baskets: $e');
       }
     }
   }
@@ -179,7 +176,8 @@ class _BasketPageState extends State<BasketPage> {
     if (raw.contains('|')) {
       return raw.split('|').first.trim().toLowerCase();
     }
-    return raw.replaceAll(RegExp(r'[^0-9]'), '').trim().toLowerCase();
+    // Keep the raw value as-is so alphanumeric SKUs match
+    return raw.trim().toLowerCase();
   }
 
   void _matchAndAddScannedItem(String scannedSerial) {
@@ -200,6 +198,24 @@ class _BasketPageState extends State<BasketPage> {
     if (matchingItem.isNotEmpty) {
       BeepService.playBeep();
       _addToBasket(matchingItem);
+    } else {
+      // Fallback: try contains matching
+      final partialMatch = _inventoryItems.cast<Map<String, dynamic>>().firstWhere(
+        (item) {
+          final sku = (item['sku'] as String? ?? '').toLowerCase();
+          final serialNo = (item['serialNo'] as String? ?? '').toLowerCase();
+          final barcode = (item['barcode'] as String? ?? '').toLowerCase();
+          return (sku.isNotEmpty && sku.contains(scannedSerial)) ||
+                 (serialNo.isNotEmpty && serialNo.contains(scannedSerial)) ||
+                 (barcode.isNotEmpty && barcode.contains(scannedSerial));
+        },
+        orElse: () => <String, dynamic>{},
+      );
+
+      if (partialMatch.isNotEmpty) {
+        BeepService.playBeep();
+        _addToBasket(partialMatch);
+      }
     }
   }
 
@@ -212,9 +228,7 @@ class _BasketPageState extends State<BasketPage> {
         if (currentQty < availableQty) {
           _currentBasketItems[existingIndex]['basketQuantity'] = currentQty + 1;
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Maximum stock reached')),
-          );
+          SnackBarUtils.showWarning(context, 'Maximum stock reached');
         }
       } else {
         final newItem = Map<String, dynamic>.from(item);
@@ -237,9 +251,7 @@ class _BasketPageState extends State<BasketPage> {
     }
     final availableQty = _currentBasketItems[index]['quantity'] as int? ?? 0;
     if (newQty > availableQty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Only $availableQty available in stock')),
-      );
+      SnackBarUtils.showWarning(context, 'Only $availableQty available in stock');
       return;
     }
     setState(() {
@@ -277,9 +289,7 @@ class _BasketPageState extends State<BasketPage> {
 
   Future<void> _saveBasket() async {
     if (_currentBasketItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Basket is empty')),
-      );
+      SnackBarUtils.showWarning(context, 'Basket is empty');
       return;
     }
 
@@ -339,20 +349,16 @@ class _BasketPageState extends State<BasketPage> {
       await _loadUserBaskets();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_editingBasketNumber != null
-                ? 'Basket updated successfully!'
-                : 'Basket saved successfully!'),
-            backgroundColor: Colors.green,
-          ),
+        SnackBarUtils.showSuccess(
+          context,
+          _editingBasketNumber != null
+              ? 'Basket updated successfully!'
+              : 'Basket saved successfully!',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving basket: $e')),
-        );
+        SnackBarUtils.showError(context, 'Error saving basket: $e');
       }
     } finally {
       setState(() => _isSaving = false);
@@ -362,25 +368,31 @@ class _BasketPageState extends State<BasketPage> {
   Future<void> _deleteBasket(Map<String, dynamic> basket) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _cardColor,
-        title: const Text('Delete Basket?', style: TextStyle(color: _textPrimary)),
-        content: Text(
-          'Are you sure you want to delete Basket #${basket['basketNumber']}?',
-          style: TextStyle(color: _textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+      builder: (context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        return AlertDialog(
+          backgroundColor: _cardColor,
+          title: const Text('Delete Basket?', style: TextStyle(color: _textPrimary)),
+          content: SizedBox(
+            width: screenWidth < 360 ? screenWidth * 0.9 : (screenWidth < 500 ? screenWidth * 0.85 : 400),
+            child: Text(
+              'Are you sure you want to delete Basket #${basket['basketNumber']}?',
+              style: TextStyle(color: _textSecondary),
+            ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed != true) return;
@@ -397,18 +409,11 @@ class _BasketPageState extends State<BasketPage> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Basket deleted'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        SnackBarUtils.showSuccess(context, 'Basket deleted');
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting basket: $e')),
-        );
+        SnackBarUtils.showError(context, 'Error deleting basket: $e');
       }
     }
   }
@@ -418,6 +423,7 @@ class _BasketPageState extends State<BasketPage> {
     final currencyFormat = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
+    final isSmallScreen = screenWidth < 360;
 
     return Scaffold(
       backgroundColor: _bgColor,
@@ -428,24 +434,24 @@ class _BasketPageState extends State<BasketPage> {
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(isSmallScreen ? 5 : 8),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [_accentColor, _accentDark],
                 ),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.shopping_basket, color: Colors.white, size: 20),
+              child: Icon(Icons.shopping_basket, color: Colors.white, size: isSmallScreen ? 16 : 20),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isSmallScreen ? 8 : 12),
             Expanded(
               child: Text(
                 _editingBasketNumber != null
                     ? '$_currentUserName - Basket #$_editingBasketNumber'
                     : '$_currentUserName - New Basket',
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 20,
+                  fontSize: isSmallScreen ? 16 : 20,
                   color: Colors.white,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -460,28 +466,34 @@ class _BasketPageState extends State<BasketPage> {
               onPressed: () {
                 showDialog(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    backgroundColor: _cardColor,
-                    title: const Text('Clear Basket?', style: TextStyle(color: _textPrimary)),
-                    content: Text(
-                      'Remove all items from current basket?',
-                      style: TextStyle(color: _textSecondary),
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+                  builder: (context) {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    return AlertDialog(
+                      backgroundColor: _cardColor,
+                      title: const Text('Clear Basket?', style: TextStyle(color: _textPrimary)),
+                      content: SizedBox(
+                        width: screenWidth < 360 ? screenWidth * 0.9 : (screenWidth < 500 ? screenWidth * 0.85 : 400),
+                        child: Text(
+                          'Remove all items from current basket?',
+                          style: TextStyle(color: _textSecondary),
+                        ),
                       ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _clearCurrentBasket();
-                        },
-                        child: const Text('Clear', style: TextStyle(color: Colors.white)),
-                      ),
-                    ],
-                  ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text('Cancel', style: TextStyle(color: _textSecondary)),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _clearCurrentBasket();
+                          },
+                          child: const Text('Clear', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    );
+                  },
                 );
               },
               tooltip: 'Clear Basket',
@@ -512,7 +524,7 @@ class _BasketPageState extends State<BasketPage> {
               ],
             ),
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isSmallScreen ? 10 : 16),
         decoration: BoxDecoration(
           color: _cardColor,
           border: Border(top: BorderSide(color: _textSecondary.withValues(alpha: 0.2))),
@@ -563,9 +575,9 @@ class _BasketPageState extends State<BasketPage> {
                     ),
                     Text(
                       currencyFormat.format(_totalAmount),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: _accentColor,
-                        fontSize: 24,
+                        fontSize: screenWidth < 360 ? 16 : (isSmallScreen ? 18 : 24),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -580,7 +592,7 @@ class _BasketPageState extends State<BasketPage> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _textSecondary,
                     side: BorderSide(color: _textSecondary.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 10 : 16, vertical: isSmallScreen ? 8 : 12),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -594,11 +606,11 @@ class _BasketPageState extends State<BasketPage> {
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.save),
-                label: Text(_editingBasketNumber != null ? 'Update' : 'Save Basket'),
+                label: Text(_editingBasketNumber != null ? 'Update' : (screenWidth < 340 ? 'Save' : (isSmallScreen ? 'Save' : 'Save Basket'))),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _currentBasketItems.isEmpty ? _cardColor : _accentColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: EdgeInsets.symmetric(horizontal: isSmallScreen ? 14 : 24, vertical: isSmallScreen ? 10 : 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -627,19 +639,21 @@ class _BasketPageState extends State<BasketPage> {
             children: [
               const Icon(Icons.pending_actions, color: _accentColor, size: 16),
               const SizedBox(width: 8),
-              Text(
-                'My Pending Baskets (${_userBaskets.length})',
-                style: const TextStyle(
-                  color: _textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'My Pending Baskets (${_userBaskets.length})',
+                  style: const TextStyle(
+                    color: _textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
               TextButton.icon(
                 onPressed: _startNewBasket,
                 icon: const Icon(Icons.add, size: 16),
-                label: const Text('New Basket'),
+                label: Text(MediaQuery.of(context).size.width < 360 ? 'New' : 'New Basket'),
                 style: TextButton.styleFrom(
                   foregroundColor: _accentColor,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -659,7 +673,7 @@ class _BasketPageState extends State<BasketPage> {
                 return GestureDetector(
                   onTap: () => _editBasket(basket),
                   child: Container(
-                    width: 140,
+                    width: MediaQuery.of(context).size.width < 360 ? 120 : 140,
                     margin: const EdgeInsets.only(right: 8),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -732,7 +746,9 @@ class _BasketPageState extends State<BasketPage> {
               tabs: [
                 Tab(
                   icon: const Icon(Icons.inventory_2),
-                  text: 'Products (${_filteredInventory.length})',
+                  text: MediaQuery.of(context).size.width < 360
+                      ? 'Items (${_filteredInventory.length})'
+                      : 'Products (${_filteredInventory.length})',
                 ),
                 Tab(
                   icon: Badge(
@@ -740,7 +756,7 @@ class _BasketPageState extends State<BasketPage> {
                     isLabelVisible: _currentBasketItems.isNotEmpty,
                     child: const Icon(Icons.shopping_basket),
                   ),
-                  text: 'Current Basket',
+                  text: MediaQuery.of(context).size.width < 360 ? 'Basket' : 'Current Basket',
                 ),
               ],
             ),
@@ -768,12 +784,12 @@ class _BasketPageState extends State<BasketPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(MediaQuery.of(context).size.width < 360 ? 12 : 16),
                 child: Text(
                   'Products',
                   style: TextStyle(
                     color: _textPrimary,
-                    fontSize: 18,
+                    fontSize: MediaQuery.of(context).size.width < 360 ? 16 : 18,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -794,17 +810,20 @@ class _BasketPageState extends State<BasketPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(MediaQuery.of(context).size.width < 360 ? 12 : 16),
                 child: Row(
                   children: [
-                    const Icon(Icons.shopping_basket, color: _accentColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Current Basket (${_currentBasketItems.length})',
-                      style: const TextStyle(
-                        color: _textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                    Icon(Icons.shopping_basket, color: _accentColor, size: MediaQuery.of(context).size.width < 360 ? 20 : 24),
+                    SizedBox(width: MediaQuery.of(context).size.width < 360 ? 6 : 8),
+                    Expanded(
+                      child: Text(
+                        'Current Basket (${_currentBasketItems.length})',
+                        style: TextStyle(
+                          color: _textPrimary,
+                          fontSize: MediaQuery.of(context).size.width < 360 ? 16 : 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -944,11 +963,14 @@ class _BasketPageState extends State<BasketPage> {
             const SizedBox(height: 4),
             Row(
               children: [
-                Text(
-                  currencyFormat.format(price),
-                  style: const TextStyle(color: _accentColor, fontWeight: FontWeight.bold),
+                Flexible(
+                  child: Text(
+                    currencyFormat.format(price),
+                    style: const TextStyle(color: _accentColor, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Text(
                   'Stock: $quantity',
                   style: TextStyle(
@@ -1101,7 +1123,7 @@ class _BasketPageState extends State<BasketPage> {
                         constraints: const BoxConstraints(),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 360 ? 8 : 12),
                         child: Text(
                           '$basketQty',
                           style: const TextStyle(color: _textPrimary, fontWeight: FontWeight.bold),

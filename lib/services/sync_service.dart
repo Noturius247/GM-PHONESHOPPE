@@ -4,44 +4,50 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'cache_service.dart';
 
 /// SyncService handles synchronization between Firebase and local Hive cache.
-/// It performs initial sync on first install and sets up real-time listeners
-/// for incremental updates.
+/// OPTIMIZED: Uses single onValue listeners instead of 3 separate streams per data type.
+/// This reduces ~68 active streams to ~20, significantly lowering data usage.
 class SyncService {
   static final DatabaseReference _database = FirebaseDatabase.instance.ref();
 
-  // Stream subscriptions for real-time updates (incremental)
-  static final Map<String, StreamSubscription> _inventoryAddedSubs = {};
-  static final Map<String, StreamSubscription> _inventoryChangedSubs = {};
-  static final Map<String, StreamSubscription> _inventoryRemovedSubs = {};
-  static final Map<String, StreamSubscription> _customerAddedSubs = {};
-  static final Map<String, StreamSubscription> _customerChangedSubs = {};
-  static final Map<String, StreamSubscription> _customerRemovedSubs = {};
-  static final Map<String, StreamSubscription> _suggestionAddedSubs = {};
-  static final Map<String, StreamSubscription> _suggestionChangedSubs = {};
-  static final Map<String, StreamSubscription> _suggestionRemovedSubs = {};
-  static StreamSubscription? _gsatActivationAddedSub;
-  static StreamSubscription? _gsatActivationChangedSub;
-  static StreamSubscription? _gsatActivationRemovedSub;
+  // OPTIMIZED: Single stream subscription per data type (was 3 per type before)
+  static final Map<String, StreamSubscription> _inventorySubs = {};
+  static final Map<String, StreamSubscription> _customerSubs = {};
+  static final Map<String, StreamSubscription> _suggestionSubs = {};
+  static StreamSubscription? _gsatActivationSub;
   static StreamSubscription? _posSettingsSub;
-  static StreamSubscription? _inventoryHistoryAddedSub;
-  static StreamSubscription? _inventoryHistoryChangedSub;
-  static StreamSubscription? _inventoryHistoryRemovedSub;
-  static StreamSubscription? _posTransactionAddedSub;
-  static StreamSubscription? _posTransactionChangedSub;
-  static StreamSubscription? _posTransactionRemovedSub;
+  static StreamSubscription? _inventoryHistorySub;
+  static StreamSubscription? _posTransactionSub;
+  static StreamSubscription? _connectivitySub;
 
   // Service types
   static const List<String> serviceTypes = ['cignal', 'gsat', 'sky', 'satellite'];
+
+  // Inventory categories
+  static const List<String> _inventoryCategories = [
+    'phones', 'tv', 'speaker', 'digital_box', 'accessories',
+    'light_bulb', 'solar_panel', 'battery', 'inverter', 'controller', 'other'
+  ];
 
   // Sync status
   static bool _isSyncing = false;
   static final _syncStatusController = StreamController<SyncStatus>.broadcast();
 
-  // Track when listeners were set up to ignore initial onChildAdded events
-  // ignore: unused_field
-  static DateTime? _listenersSetupTime;
+  // Track initialization and sync state
   static bool _initialSyncComplete = false;
   static bool _isInitialized = false;
+
+  // OPTIMIZED: Track if listeners are active (for lifecycle management)
+  static bool _listenersActive = false;
+
+  // OPTIMIZED: Query limits for large collections
+  static const int _historyQueryLimit = 500;  // Last 500 history records
+  static const int _transactionQueryLimit = 200;  // Last 200 transactions
+
+  // Local cache of last known data for change detection
+  static final Map<String, Map<String, dynamic>> _lastKnownInventory = {};
+  static final Map<String, Map<String, dynamic>> _lastKnownCustomers = {};
+  static final Map<String, Map<String, dynamic>> _lastKnownSuggestions = {};
+  static Map<String, dynamic>? _lastKnownGsatActivations;
 
   /// Stream to monitor sync status
   static Stream<SyncStatus> get syncStatusStream => _syncStatusController.stream;
@@ -75,11 +81,42 @@ class SyncService {
     }
 
     // Listen for connectivity changes
-    Connectivity().onConnectivityChanged.listen((result) {
+    await _connectivitySub?.cancel();
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((result) {
       if (result != ConnectivityResult.none) {
         _onConnectivityRestored();
       }
     });
+  }
+
+  /// OPTIMIZED: Pause all listeners when app goes to background
+  /// Call this from your app's lifecycle observer
+  static void pauseListeners() {
+    if (!_listenersActive) return;
+
+    print('SyncService: Pausing listeners to save data');
+    _cancelAllSubscriptions();
+    _listenersActive = false;
+
+    _syncStatusController.add(SyncStatus(
+      status: SyncState.idle,
+      message: 'Sync paused (app backgrounded)',
+    ));
+  }
+
+  /// OPTIMIZED: Resume listeners when app comes to foreground
+  /// Call this from your app's lifecycle observer
+  static void resumeListeners() async {
+    if (_listenersActive || !_isInitialized) return;
+
+    final hasConnectivity = await CacheService.hasConnectivity();
+    if (!hasConnectivity) {
+      print('SyncService: Cannot resume - no connectivity');
+      return;
+    }
+
+    print('SyncService: Resuming listeners');
+    _setupRealtimeListeners();
   }
 
   /// Perform initial sync if this is first run or cache is empty
@@ -115,13 +152,12 @@ class SyncService {
       await syncPosSettings();
     }
 
-    // Check if inventory history needs initial sync
+    // OPTIMIZED: Sync only recent history and transactions
     final inventoryHistorySyncCompleted = await CacheService.isInitialSyncCompleted('inventory_history');
     if (!inventoryHistorySyncCompleted) {
       await syncInventoryHistory();
     }
 
-    // Check if POS transactions needs initial sync
     final posTransactionsSyncCompleted = await CacheService.isInitialSyncCompleted('pos_transactions');
     if (!posTransactionsSyncCompleted) {
       await syncPosTransactions();
@@ -337,10 +373,15 @@ class SyncService {
 
   // ==================== INVENTORY HISTORY SYNC ====================
 
-  /// Sync all inventory history records
+  /// OPTIMIZED: Sync only recent inventory history records (limited query)
   static Future<bool> syncInventoryHistory() async {
     try {
-      final snapshot = await _database.child('inventory_history').get();
+      // OPTIMIZED: Only fetch last N records instead of all history
+      final snapshot = await _database
+          .child('inventory_history')
+          .orderByChild('timestamp')
+          .limitToLast(_historyQueryLimit)
+          .get();
 
       if (snapshot.exists) {
         final data = snapshot.value as Map<dynamic, dynamic>;
@@ -352,7 +393,7 @@ class SyncService {
 
         await CacheService.saveInventoryHistory(records);
         await CacheService.setInitialSyncCompleted('inventory_history');
-        print('Inventory history sync completed: ${records.length} records');
+        print('Inventory history sync completed: ${records.length} records (limited to $_historyQueryLimit)');
       } else {
         await CacheService.setInitialSyncCompleted('inventory_history');
       }
@@ -366,10 +407,15 @@ class SyncService {
 
   // ==================== POS TRANSACTIONS SYNC ====================
 
-  /// Sync all POS transactions
+  /// OPTIMIZED: Sync only recent POS transactions (limited query)
   static Future<bool> syncPosTransactions() async {
     try {
-      final snapshot = await _database.child('pos_transactions').get();
+      // OPTIMIZED: Only fetch last N transactions instead of all
+      final snapshot = await _database
+          .child('pos_transactions')
+          .orderByChild('timestamp')
+          .limitToLast(_transactionQueryLimit)
+          .get();
 
       if (snapshot.exists) {
         final data = snapshot.value as Map<dynamic, dynamic>;
@@ -381,7 +427,7 @@ class SyncService {
 
         await CacheService.savePosTransactions(transactions);
         await CacheService.setInitialSyncCompleted('pos_transactions');
-        print('POS transactions sync completed: ${transactions.length} transactions');
+        print('POS transactions sync completed: ${transactions.length} transactions (limited to $_transactionQueryLimit)');
       } else {
         await CacheService.setInitialSyncCompleted('pos_transactions');
       }
@@ -393,232 +439,295 @@ class SyncService {
     }
   }
 
-  // ==================== REAL-TIME LISTENERS (INCREMENTAL) ====================
+  // ==================== REAL-TIME LISTENERS (OPTIMIZED) ====================
 
-  /// Set up real-time listeners for automatic sync using incremental updates
+  /// OPTIMIZED: Set up real-time listeners using single onValue per data type
+  /// This reduces ~68 streams to ~20 streams
   static void _setupRealtimeListeners() {
-    // Mark the time when listeners are set up - events before this are initial load
-    _listenersSetupTime = DateTime.now();
+    if (_listenersActive) {
+      print('Listeners already active - skipping setup');
+      return;
+    }
 
-    // Small delay to let initial onChildAdded events pass before marking sync complete
-    Future.delayed(const Duration(seconds: 3), () {
+    // Mark initial sync as complete after a delay (to skip initial data load)
+    Future.delayed(const Duration(seconds: 2), () {
       _initialSyncComplete = true;
       print('Initial sync complete - now listening for real-time changes only');
     });
 
-    // Set up inventory listeners for each category
-    final categories = ['phones', 'tv', 'speaker', 'digital_box', 'accessories',
-                        'light_bulb', 'solar_panel', 'battery', 'inverter', 'controller', 'other'];
-    for (var category in categories) {
-      _setupInventoryListenersForCategory(category);
+    // OPTIMIZED: Single listener per inventory category
+    for (var category in _inventoryCategories) {
+      _setupInventoryListener(category);
     }
 
-    // Set up customer and suggestion listeners for each service type
+    // OPTIMIZED: Single listener per service type for customers and suggestions
     for (var serviceType in serviceTypes) {
-      _setupCustomerListenersForService(serviceType);
-      _setupSuggestionListenersForService(serviceType);
+      _setupCustomerListener(serviceType);
+      _setupSuggestionListener(serviceType);
     }
 
-    // Set up GSAT activations listeners
-    _setupGsatActivationListeners();
-
-    // Set up POS settings listener
+    // OPTIMIZED: Single listeners for other data types
+    _setupGsatActivationListener();
     _setupPosSettingsListener();
+    _setupInventoryHistoryListener();
+    _setupPosTransactionListener();
 
-    // Set up inventory history listeners
-    _setupInventoryHistoryListeners();
+    _listenersActive = true;
 
-    // Set up POS transactions listeners
-    _setupPosTransactionListeners();
+    _syncStatusController.add(SyncStatus(
+      status: SyncState.completed,
+      message: 'Real-time sync active',
+    ));
+
+    // Log the number of active streams for monitoring
+    final streamCount = _inventoryCategories.length +
+                        (serviceTypes.length * 2) + // customers + suggestions
+                        4; // gsat, pos_settings, history, transactions
+    print('SyncService: Started $streamCount optimized listeners (was ~68 before)');
   }
 
-  /// Set up INCREMENTAL listeners for a specific inventory category
-  /// Only syncs individual items when they change (not the whole dataset)
-  static void _setupInventoryListenersForCategory(String category) {
+  /// OPTIMIZED: Single onValue listener for inventory category with diff detection
+  static void _setupInventoryListener(String category) {
     final ref = _database.child('inventory').child(category);
 
-    // Cancel existing subscriptions
-    _inventoryAddedSubs[category]?.cancel();
-    _inventoryChangedSubs[category]?.cancel();
-    _inventoryRemovedSubs[category]?.cancel();
+    _inventorySubs[category]?.cancel();
 
-    // Listen for NEW items added (skip initial load events)
-    _inventoryAddedSubs[category] = ref.onChildAdded.listen(
+    _inventorySubs[category] = ref.onValue.listen(
       (event) async {
-        // Skip initial flood of events - only process after initial sync
         if (!_initialSyncComplete) return;
 
-        if (event.snapshot.exists) {
-          final item = Map<String, dynamic>.from(event.snapshot.value as Map);
-          item['id'] = event.snapshot.key;
+        final newData = event.snapshot.value as Map<dynamic, dynamic>?;
+        final lastKnown = _lastKnownInventory[category];
+
+        if (newData == null) {
+          // All items in category were deleted
+          if (lastKnown != null) {
+            for (var id in lastKnown.keys) {
+              await CacheService.deleteInventoryItem(id);
+              print('Inventory item removed: $id ($category)');
+            }
+          }
+          _lastKnownInventory[category] = {};
+          return;
+        }
+
+        final newDataMap = Map<String, dynamic>.from(newData);
+
+        // Detect changes by comparing with last known state
+        final newIds = newDataMap.keys.toSet();
+        final oldIds = lastKnown?.keys.toSet() ?? <String>{};
+
+        // Added items
+        for (var id in newIds.difference(oldIds)) {
+          final item = Map<String, dynamic>.from(newDataMap[id] as Map);
+          item['id'] = id;
           item['category'] = category;
           await CacheService.saveInventoryItem(item);
           print('Inventory item added: ${item['name']} ($category)');
         }
-      },
-      onError: (error) => print('Inventory onChildAdded error: $error'),
-    );
 
-    // Listen for CHANGED items (updates)
-    _inventoryChangedSubs[category] = ref.onChildChanged.listen(
-      (event) async {
-        if (event.snapshot.exists) {
-          final item = Map<String, dynamic>.from(event.snapshot.value as Map);
-          item['id'] = event.snapshot.key;
-          item['category'] = category;
-          await CacheService.saveInventoryItem(item);
-          print('Inventory item updated: ${item['name']} ($category)');
+        // Removed items
+        for (var id in oldIds.difference(newIds)) {
+          await CacheService.deleteInventoryItem(id);
+          print('Inventory item removed: $id ($category)');
         }
-      },
-      onError: (error) => print('Inventory onChildChanged error: $error'),
-    );
 
-    // Listen for REMOVED items
-    _inventoryRemovedSubs[category] = ref.onChildRemoved.listen(
-      (event) async {
-        final itemId = event.snapshot.key;
-        if (itemId != null) {
-          await CacheService.deleteInventoryItem(itemId);
-          print('Inventory item removed: $itemId ($category)');
+        // Changed items (check by comparing JSON or specific fields)
+        for (var id in newIds.intersection(oldIds)) {
+          final newItem = newDataMap[id];
+          final oldItem = lastKnown?[id];
+
+          // Simple change detection: compare updatedAt timestamp
+          final newUpdated = (newItem as Map?)?['updatedAt'];
+          final oldUpdated = (oldItem as Map?)?['updatedAt'];
+
+          if (newUpdated != oldUpdated) {
+            final item = Map<String, dynamic>.from(newItem as Map);
+            item['id'] = id;
+            item['category'] = category;
+            await CacheService.saveInventoryItem(item);
+            print('Inventory item updated: ${item['name']} ($category)');
+          }
         }
+
+        // Update last known state
+        _lastKnownInventory[category] = newDataMap;
       },
-      onError: (error) => print('Inventory onChildRemoved error: $error'),
+      onError: (error) => print('Inventory $category listener error: $error'),
     );
   }
 
-  /// Set up INCREMENTAL listeners for a specific service type's customers
-  /// Only syncs individual customers when they change
-  static void _setupCustomerListenersForService(String serviceType) {
+  /// OPTIMIZED: Single onValue listener for customers with diff detection
+  static void _setupCustomerListener(String serviceType) {
     final ref = _database.child('services').child(serviceType).child('customers');
 
-    // Cancel existing subscriptions
-    _customerAddedSubs[serviceType]?.cancel();
-    _customerChangedSubs[serviceType]?.cancel();
-    _customerRemovedSubs[serviceType]?.cancel();
+    _customerSubs[serviceType]?.cancel();
 
-    // Listen for NEW customers added (skip initial load events)
-    _customerAddedSubs[serviceType] = ref.onChildAdded.listen(
+    _customerSubs[serviceType] = ref.onValue.listen(
       (event) async {
-        // Skip initial flood of events - only process after initial sync
         if (!_initialSyncComplete) return;
 
-        if (event.snapshot.exists) {
-          final customer = Map<String, dynamic>.from(event.snapshot.value as Map);
-          customer['id'] = event.snapshot.key;
+        final newData = event.snapshot.value as Map<dynamic, dynamic>?;
+        final lastKnown = _lastKnownCustomers[serviceType];
+
+        if (newData == null) {
+          if (lastKnown != null) {
+            for (var id in lastKnown.keys) {
+              await CacheService.deleteCustomer(serviceType, id);
+              print('Customer removed: $id ($serviceType)');
+            }
+          }
+          _lastKnownCustomers[serviceType] = {};
+          return;
+        }
+
+        final newDataMap = Map<String, dynamic>.from(newData);
+        final newIds = newDataMap.keys.toSet();
+        final oldIds = lastKnown?.keys.toSet() ?? <String>{};
+
+        // Added
+        for (var id in newIds.difference(oldIds)) {
+          final customer = Map<String, dynamic>.from(newDataMap[id] as Map);
+          customer['id'] = id;
           await CacheService.saveCustomer(serviceType, customer);
           print('Customer added: ${customer['name']} ($serviceType)');
         }
-      },
-      onError: (error) => print('$serviceType onChildAdded error: $error'),
-    );
 
-    // Listen for CHANGED customers (updates)
-    _customerChangedSubs[serviceType] = ref.onChildChanged.listen(
-      (event) async {
-        if (event.snapshot.exists) {
-          final customer = Map<String, dynamic>.from(event.snapshot.value as Map);
-          customer['id'] = event.snapshot.key;
-          await CacheService.saveCustomer(serviceType, customer);
-          print('Customer updated: ${customer['name']} ($serviceType)');
+        // Removed
+        for (var id in oldIds.difference(newIds)) {
+          await CacheService.deleteCustomer(serviceType, id);
+          print('Customer removed: $id ($serviceType)');
         }
-      },
-      onError: (error) => print('$serviceType onChildChanged error: $error'),
-    );
 
-    // Listen for REMOVED customers
-    _customerRemovedSubs[serviceType] = ref.onChildRemoved.listen(
-      (event) async {
-        final customerId = event.snapshot.key;
-        if (customerId != null) {
-          await CacheService.deleteCustomer(serviceType, customerId);
-          print('Customer removed: $customerId ($serviceType)');
+        // Changed
+        for (var id in newIds.intersection(oldIds)) {
+          final newItem = newDataMap[id];
+          final oldItem = lastKnown?[id];
+          final newUpdated = (newItem as Map?)?['updatedAt'];
+          final oldUpdated = (oldItem as Map?)?['updatedAt'];
+
+          if (newUpdated != oldUpdated) {
+            final customer = Map<String, dynamic>.from(newItem as Map);
+            customer['id'] = id;
+            await CacheService.saveCustomer(serviceType, customer);
+            print('Customer updated: ${customer['name']} ($serviceType)');
+          }
         }
+
+        _lastKnownCustomers[serviceType] = newDataMap;
       },
-      onError: (error) => print('$serviceType onChildRemoved error: $error'),
+      onError: (error) => print('$serviceType customers listener error: $error'),
     );
   }
 
-  /// Set up INCREMENTAL listeners for suggestions
-  static void _setupSuggestionListenersForService(String serviceType) {
+  /// OPTIMIZED: Single onValue listener for suggestions with diff detection
+  static void _setupSuggestionListener(String serviceType) {
     final ref = _database.child('services').child(serviceType).child('suggestions');
 
-    _suggestionAddedSubs[serviceType]?.cancel();
-    _suggestionChangedSubs[serviceType]?.cancel();
-    _suggestionRemovedSubs[serviceType]?.cancel();
+    _suggestionSubs[serviceType]?.cancel();
 
-    _suggestionAddedSubs[serviceType] = ref.onChildAdded.listen(
+    _suggestionSubs[serviceType] = ref.onValue.listen(
       (event) async {
-        if (!_initialSyncComplete) return; // Skip initial load
-        if (event.snapshot.exists) {
-          final suggestion = Map<String, dynamic>.from(event.snapshot.value as Map);
-          suggestion['id'] = event.snapshot.key;
+        if (!_initialSyncComplete) return;
+
+        final newData = event.snapshot.value as Map<dynamic, dynamic>?;
+        final lastKnown = _lastKnownSuggestions[serviceType];
+
+        if (newData == null) {
+          if (lastKnown != null) {
+            for (var id in lastKnown.keys) {
+              await CacheService.deleteSuggestion(serviceType, id);
+            }
+          }
+          _lastKnownSuggestions[serviceType] = {};
+          return;
+        }
+
+        final newDataMap = Map<String, dynamic>.from(newData);
+        final newIds = newDataMap.keys.toSet();
+        final oldIds = lastKnown?.keys.toSet() ?? <String>{};
+
+        for (var id in newIds.difference(oldIds)) {
+          final suggestion = Map<String, dynamic>.from(newDataMap[id] as Map);
+          suggestion['id'] = id;
           await CacheService.saveSuggestion(serviceType, suggestion);
         }
-      },
-      onError: (error) => print('$serviceType suggestion onChildAdded error: $error'),
-    );
 
-    _suggestionChangedSubs[serviceType] = ref.onChildChanged.listen(
-      (event) async {
-        if (event.snapshot.exists) {
-          final suggestion = Map<String, dynamic>.from(event.snapshot.value as Map);
-          suggestion['id'] = event.snapshot.key;
-          await CacheService.saveSuggestion(serviceType, suggestion);
+        for (var id in oldIds.difference(newIds)) {
+          await CacheService.deleteSuggestion(serviceType, id);
         }
-      },
-      onError: (error) => print('$serviceType suggestion onChildChanged error: $error'),
-    );
 
-    _suggestionRemovedSubs[serviceType] = ref.onChildRemoved.listen(
-      (event) async {
-        final suggestionId = event.snapshot.key;
-        if (suggestionId != null) {
-          await CacheService.deleteSuggestion(serviceType, suggestionId);
+        for (var id in newIds.intersection(oldIds)) {
+          final newItem = newDataMap[id];
+          final oldItem = lastKnown?[id];
+          final newUpdated = (newItem as Map?)?['updatedAt'];
+          final oldUpdated = (oldItem as Map?)?['updatedAt'];
+
+          if (newUpdated != oldUpdated) {
+            final suggestion = Map<String, dynamic>.from(newItem as Map);
+            suggestion['id'] = id;
+            await CacheService.saveSuggestion(serviceType, suggestion);
+          }
         }
+
+        _lastKnownSuggestions[serviceType] = newDataMap;
       },
-      onError: (error) => print('$serviceType suggestion onChildRemoved error: $error'),
+      onError: (error) => print('$serviceType suggestions listener error: $error'),
     );
   }
 
-  /// Set up INCREMENTAL listeners for GSAT activations
-  static void _setupGsatActivationListeners() {
+  /// OPTIMIZED: Single onValue listener for GSAT activations
+  static void _setupGsatActivationListener() {
     final ref = _database.child('gsat_activations');
 
-    _gsatActivationAddedSub?.cancel();
-    _gsatActivationChangedSub?.cancel();
-    _gsatActivationRemovedSub?.cancel();
+    _gsatActivationSub?.cancel();
 
-    _gsatActivationAddedSub = ref.onChildAdded.listen(
+    _gsatActivationSub = ref.onValue.listen(
       (event) async {
-        if (!_initialSyncComplete) return; // Skip initial load
-        if (event.snapshot.exists) {
-          final activation = Map<String, dynamic>.from(event.snapshot.value as Map);
-          activation['id'] = event.snapshot.key;
+        if (!_initialSyncComplete) return;
+
+        final newData = event.snapshot.value as Map<dynamic, dynamic>?;
+
+        if (newData == null) {
+          if (_lastKnownGsatActivations != null) {
+            for (var id in _lastKnownGsatActivations!.keys) {
+              await CacheService.deleteGsatActivation(id);
+            }
+          }
+          _lastKnownGsatActivations = {};
+          return;
+        }
+
+        final newDataMap = Map<String, dynamic>.from(newData);
+        final newIds = newDataMap.keys.toSet();
+        final oldIds = _lastKnownGsatActivations?.keys.toSet() ?? <String>{};
+
+        for (var id in newIds.difference(oldIds)) {
+          final activation = Map<String, dynamic>.from(newDataMap[id] as Map);
+          activation['id'] = id;
           await CacheService.saveGsatActivation(activation);
         }
-      },
-      onError: (error) => print('GSAT activation onChildAdded error: $error'),
-    );
 
-    _gsatActivationChangedSub = ref.onChildChanged.listen(
-      (event) async {
-        if (event.snapshot.exists) {
-          final activation = Map<String, dynamic>.from(event.snapshot.value as Map);
-          activation['id'] = event.snapshot.key;
-          await CacheService.saveGsatActivation(activation);
+        for (var id in oldIds.difference(newIds)) {
+          await CacheService.deleteGsatActivation(id);
         }
-      },
-      onError: (error) => print('GSAT activation onChildChanged error: $error'),
-    );
 
-    _gsatActivationRemovedSub = ref.onChildRemoved.listen(
-      (event) async {
-        final activationId = event.snapshot.key;
-        if (activationId != null) {
-          await CacheService.deleteGsatActivation(activationId);
+        for (var id in newIds.intersection(oldIds)) {
+          final newItem = newDataMap[id];
+          final oldItem = _lastKnownGsatActivations?[id];
+          final newUpdated = (newItem as Map?)?['timestamp'];
+          final oldUpdated = (oldItem as Map?)?['timestamp'];
+
+          if (newUpdated != oldUpdated) {
+            final activation = Map<String, dynamic>.from(newItem as Map);
+            activation['id'] = id;
+            await CacheService.saveGsatActivation(activation);
+          }
         }
+
+        _lastKnownGsatActivations = newDataMap;
       },
-      onError: (error) => print('GSAT activation onChildRemoved error: $error'),
+      onError: (error) => print('GSAT activation listener error: $error'),
     );
   }
 
@@ -637,87 +746,63 @@ class SyncService {
     );
   }
 
-  /// Set up INCREMENTAL listeners for inventory history
-  static void _setupInventoryHistoryListeners() {
-    final ref = _database.child('inventory_history');
+  /// OPTIMIZED: Single onValue listener for inventory history (with query limit)
+  static void _setupInventoryHistoryListener() {
+    // OPTIMIZED: Only listen to recent records
+    final ref = _database
+        .child('inventory_history')
+        .orderByChild('timestamp')
+        .limitToLast(_historyQueryLimit);
 
-    _inventoryHistoryAddedSub?.cancel();
-    _inventoryHistoryChangedSub?.cancel();
-    _inventoryHistoryRemovedSub?.cancel();
+    _inventoryHistorySub?.cancel();
 
-    _inventoryHistoryAddedSub = ref.onChildAdded.listen(
+    _inventoryHistorySub = ref.onValue.listen(
       (event) async {
-        if (!_initialSyncComplete) return; // Skip initial load
+        if (!_initialSyncComplete) return;
+
         if (event.snapshot.exists) {
-          final record = Map<String, dynamic>.from(event.snapshot.value as Map);
-          record['id'] = event.snapshot.key;
-          await CacheService.saveInventoryHistoryRecord(record);
-        }
-      },
-      onError: (error) => print('Inventory history onChildAdded error: $error'),
-    );
+          final data = event.snapshot.value as Map<dynamic, dynamic>;
+          final records = data.entries.map((entry) {
+            final record = Map<String, dynamic>.from(entry.value as Map);
+            record['id'] = entry.key;
+            return record;
+          }).toList();
 
-    _inventoryHistoryChangedSub = ref.onChildChanged.listen(
-      (event) async {
-        if (event.snapshot.exists) {
-          final record = Map<String, dynamic>.from(event.snapshot.value as Map);
-          record['id'] = event.snapshot.key;
-          await CacheService.saveInventoryHistoryRecord(record);
+          // Replace all cached history with latest (limited) records
+          await CacheService.saveInventoryHistory(records);
         }
       },
-      onError: (error) => print('Inventory history onChildChanged error: $error'),
-    );
-
-    _inventoryHistoryRemovedSub = ref.onChildRemoved.listen(
-      (event) async {
-        final recordId = event.snapshot.key;
-        if (recordId != null) {
-          await CacheService.deleteInventoryHistoryRecord(recordId);
-        }
-      },
-      onError: (error) => print('Inventory history onChildRemoved error: $error'),
+      onError: (error) => print('Inventory history listener error: $error'),
     );
   }
 
-  /// Set up INCREMENTAL listeners for POS transactions
-  static void _setupPosTransactionListeners() {
-    final ref = _database.child('pos_transactions');
+  /// OPTIMIZED: Single onValue listener for POS transactions (with query limit)
+  static void _setupPosTransactionListener() {
+    // OPTIMIZED: Only listen to recent transactions
+    final ref = _database
+        .child('pos_transactions')
+        .orderByChild('timestamp')
+        .limitToLast(_transactionQueryLimit);
 
-    _posTransactionAddedSub?.cancel();
-    _posTransactionChangedSub?.cancel();
-    _posTransactionRemovedSub?.cancel();
+    _posTransactionSub?.cancel();
 
-    _posTransactionAddedSub = ref.onChildAdded.listen(
+    _posTransactionSub = ref.onValue.listen(
       (event) async {
-        if (!_initialSyncComplete) return; // Skip initial load
+        if (!_initialSyncComplete) return;
+
         if (event.snapshot.exists) {
-          final transaction = Map<String, dynamic>.from(event.snapshot.value as Map);
-          transaction['transactionId'] = event.snapshot.key;
-          await CacheService.savePosTransaction(transaction);
-        }
-      },
-      onError: (error) => print('POS transaction onChildAdded error: $error'),
-    );
+          final data = event.snapshot.value as Map<dynamic, dynamic>;
+          final transactions = data.entries.map((entry) {
+            final transaction = Map<String, dynamic>.from(entry.value as Map);
+            transaction['transactionId'] = entry.key;
+            return transaction;
+          }).toList();
 
-    _posTransactionChangedSub = ref.onChildChanged.listen(
-      (event) async {
-        if (event.snapshot.exists) {
-          final transaction = Map<String, dynamic>.from(event.snapshot.value as Map);
-          transaction['transactionId'] = event.snapshot.key;
-          await CacheService.savePosTransaction(transaction);
+          // Update cache with latest transactions
+          await CacheService.savePosTransactions(transactions);
         }
       },
-      onError: (error) => print('POS transaction onChildChanged error: $error'),
-    );
-
-    _posTransactionRemovedSub = ref.onChildRemoved.listen(
-      (event) async {
-        final transactionId = event.snapshot.key;
-        if (transactionId != null) {
-          await CacheService.deletePosTransaction(transactionId);
-        }
-      },
-      onError: (error) => print('POS transaction onChildRemoved error: $error'),
+      onError: (error) => print('POS transaction listener error: $error'),
     );
   }
 
@@ -776,69 +861,61 @@ class SyncService {
     return status;
   }
 
-  /// Dispose all subscriptions
-  static void dispose() {
-    // Cancel all inventory subscriptions
-    for (var sub in _inventoryAddedSubs.values) {
+  /// Cancel all active subscriptions
+  static void _cancelAllSubscriptions() {
+    // Cancel inventory subscriptions
+    for (var sub in _inventorySubs.values) {
       sub.cancel();
     }
-    for (var sub in _inventoryChangedSubs.values) {
-      sub.cancel();
-    }
-    for (var sub in _inventoryRemovedSubs.values) {
-      sub.cancel();
-    }
-    _inventoryAddedSubs.clear();
-    _inventoryChangedSubs.clear();
-    _inventoryRemovedSubs.clear();
+    _inventorySubs.clear();
 
-    // Cancel all customer subscriptions
-    for (var sub in _customerAddedSubs.values) {
+    // Cancel customer subscriptions
+    for (var sub in _customerSubs.values) {
       sub.cancel();
     }
-    for (var sub in _customerChangedSubs.values) {
-      sub.cancel();
-    }
-    for (var sub in _customerRemovedSubs.values) {
-      sub.cancel();
-    }
-    _customerAddedSubs.clear();
-    _customerChangedSubs.clear();
-    _customerRemovedSubs.clear();
+    _customerSubs.clear();
 
-    // Cancel all suggestion subscriptions
-    for (var sub in _suggestionAddedSubs.values) {
+    // Cancel suggestion subscriptions
+    for (var sub in _suggestionSubs.values) {
       sub.cancel();
     }
-    for (var sub in _suggestionChangedSubs.values) {
-      sub.cancel();
-    }
-    for (var sub in _suggestionRemovedSubs.values) {
-      sub.cancel();
-    }
-    _suggestionAddedSubs.clear();
-    _suggestionChangedSubs.clear();
-    _suggestionRemovedSubs.clear();
+    _suggestionSubs.clear();
 
-    // Cancel GSAT activation subscriptions
-    _gsatActivationAddedSub?.cancel();
-    _gsatActivationChangedSub?.cancel();
-    _gsatActivationRemovedSub?.cancel();
+    // Cancel single subscriptions
+    _gsatActivationSub?.cancel();
+    _gsatActivationSub = null;
 
-    // Cancel POS settings subscription
     _posSettingsSub?.cancel();
+    _posSettingsSub = null;
 
-    // Cancel inventory history subscriptions
-    _inventoryHistoryAddedSub?.cancel();
-    _inventoryHistoryChangedSub?.cancel();
-    _inventoryHistoryRemovedSub?.cancel();
+    _inventoryHistorySub?.cancel();
+    _inventoryHistorySub = null;
 
-    // Cancel POS transaction subscriptions
-    _posTransactionAddedSub?.cancel();
-    _posTransactionChangedSub?.cancel();
-    _posTransactionRemovedSub?.cancel();
+    _posTransactionSub?.cancel();
+    _posTransactionSub = null;
+  }
+
+  /// Dispose all subscriptions and reset state for clean re-initialization
+  static void dispose() {
+    // Cancel connectivity subscription
+    _connectivitySub?.cancel();
+    _connectivitySub = null;
+
+    // Cancel all data subscriptions
+    _cancelAllSubscriptions();
+
+    // Clear last known state
+    _lastKnownInventory.clear();
+    _lastKnownCustomers.clear();
+    _lastKnownSuggestions.clear();
+    _lastKnownGsatActivations = null;
 
     _syncStatusController.close();
+
+    // Reset state so service can be re-initialized
+    _isInitialized = false;
+    _initialSyncComplete = false;
+    _listenersActive = false;
   }
 }
 

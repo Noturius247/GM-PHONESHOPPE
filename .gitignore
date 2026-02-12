@@ -91,3 +91,6 @@ nul
 # Personal/device-specific files
 shortcuts
 wireless_debug.bat
+
+# Large bug report files
+parkingapp_bugreport/

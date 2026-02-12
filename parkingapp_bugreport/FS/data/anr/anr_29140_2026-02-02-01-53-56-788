@@ -1,0 +1,13 @@
+Subject: Broadcast of Intent { act=AlarmManagerWakeUp_Perform_BackgroundScan flg=0x14 cmp=com.moniqtap.airtag.detector.scanner.finder/com.moniqtap.airtag.worker.ScheduleWorkersReceiver (has extras) oflg=0x10000 mRealCallingUid=1000 }
+RssHwmKb: 306900
+RssKb: 290668
+RssAnonKb: 88424
+RssShmemKb: 1792
+VmSwapKb: 33032
+
+
+--- CriticalEventLog ---
+capacity: 20
+timestamp_ms: 1769968436785
+window_ms: 300000
+

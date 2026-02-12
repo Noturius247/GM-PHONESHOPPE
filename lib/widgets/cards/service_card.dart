@@ -100,6 +100,8 @@ class ServiceCard extends StatelessWidget {
                   style: AppTypography.headlineSmall(
                     color: AppColors.textPrimary,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
 
                 AppSpacing.vSm,

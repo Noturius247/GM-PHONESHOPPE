@@ -150,6 +150,7 @@ class StaffPinService {
       final snap = await _pinsRef.orderByChild('userId').equalTo(userId).get();
       if (snap.exists && snap.value != null) {
         final data = Map<String, dynamic>.from(snap.value as Map);
+        if (data.isEmpty) return null;
         // The key is the PIN itself
         return data.keys.first;
       }
@@ -162,7 +163,7 @@ class StaffPinService {
 
   /// Generate a random 4-digit PIN that is not already in use.
   static Future<String> generateUniquePin() async {
-    final rng = Random();
+    final rng = Random.secure();
     for (int attempt = 0; attempt < 100; attempt++) {
       final pin = (rng.nextInt(9000) + 1000).toString(); // 1000-9999
       final taken = await isPinTaken(pin);

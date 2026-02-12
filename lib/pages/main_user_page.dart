@@ -7,6 +7,7 @@ import 'gsat_page.dart';
 import 'gsat_activation_page.dart';
 import 'sky_page.dart';
 import 'inventory_page.dart';
+import 'inday_inventory_page.dart';
 import 'transaction_history_page.dart';
 import 'landing_page.dart';
 import 'settings_page.dart';
@@ -18,6 +19,7 @@ import '../services/inventory_service.dart';
 import '../services/sync_service.dart';
 import '../services/cache_service.dart';
 import '../services/notification_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class MainUserPage extends StatefulWidget {
   final String userName;
@@ -31,6 +33,7 @@ class MainUserPage extends StatefulWidget {
 class _MainUserPageState extends State<MainUserPage> {
   int _selectedIndex = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final GlobalKey<InventoryPageState> _inventoryKey = GlobalKey<InventoryPageState>();
   String _userFirstName = 'User';
   String _userEmail = '';
   bool _isPosAccount = false;
@@ -93,6 +96,11 @@ class _MainUserPageState extends State<MainUserPage> {
       gradientColors: inventoryGradient,
     ),
     _MenuItem(
+      icon: Icons.warehouse,
+      title: 'Inday Inventory',
+      gradientColors: [Color(0xFF16A085), Color(0xFF117A65)],
+    ),
+    _MenuItem(
       icon: Icons.history,
       title: 'Transactions',
       gradientColors: [Color(0xFFE67E22), Color(0xFFD35400)],
@@ -137,7 +145,8 @@ class _MainUserPageState extends State<MainUserPage> {
       const GSatPage(),
       const GsatActivationPage(),
       const SkyPage(),
-      const InventoryPage(),
+      InventoryPage(key: _inventoryKey),
+      const IndayInventoryPage(),
       const TransactionHistoryPage(),
       const LabelPrintingPage(),
       const SettingsPage(),
@@ -159,35 +168,33 @@ class _MainUserPageState extends State<MainUserPage> {
     _loadLowStockItems(); // Refresh bell icon badge
     final title = alert['title'] ?? 'Stock Alert';
     final body = alert['body'] ?? '';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              alert['alertType'] == 'out_of_stock'
-                  ? Icons.error_outline
-                  : Icons.warning_amber_rounded,
-              color: Colors.white,
+    SnackBarUtils.showTopSnackBar(
+      context,
+      message: title,
+      backgroundColor: alert['alertType'] == 'out_of_stock'
+          ? const Color(0xFFD32F2F)
+          : const Color(0xFFF57C00),
+      duration: const Duration(seconds: 5),
+      content: Row(
+        children: [
+          Icon(
+            alert['alertType'] == 'out_of_stock'
+                ? Icons.error_outline
+                : Icons.warning_amber_rounded,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                if (body.isNotEmpty) Text(body, style: const TextStyle(fontSize: 12)),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  if (body.isNotEmpty) Text(body, style: const TextStyle(fontSize: 12)),
-                ],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: alert['alertType'] == 'out_of_stock'
-            ? const Color(0xFFD32F2F)
-            : const Color(0xFFF57C00),
-        duration: const Duration(seconds: 5),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ],
       ),
     );
   }
@@ -318,6 +325,10 @@ class _MainUserPageState extends State<MainUserPage> {
         onTap: () {
           Navigator.pop(context);
           setState(() => _selectedIndex = 6); // Navigate to Inventory
+          // Open the item details dialog after navigation
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _inventoryKey.currentState?.openItemDetails(item);
+          });
         },
         child: Row(
           children: [
@@ -395,8 +406,8 @@ class _MainUserPageState extends State<MainUserPage> {
     }
   }
 
-  /// Index of the Profile page (always 10 for non-POS, stays at 10 for POS since POS is appended after)
-  int get _profileIndex => 10;
+  /// Index of the Profile page (not shown in menu, but kept for dynamic page rebuilding)
+  int get _profileIndex => 11;
 
   /// Index of the POS page (appended after Profile, only exists for POS accounts)
   int get _posIndex => _isPosAccount ? _menuItems.length - 1 : -1;
@@ -423,8 +434,8 @@ class _MainUserPageState extends State<MainUserPage> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: const Color(0xFF1A0A0A),
-      drawer: isMobile ? _buildMobileDrawer(context) : null,
-      appBar: _buildAppBar(context, isMobile),
+      drawer: isMobile ? _buildMobileDrawer(context, screenWidth) : null,
+      appBar: _buildAppBar(context, isMobile, screenWidth),
       body: Row(
         children: [
           if (!isMobile) _buildSidebar(),
@@ -440,7 +451,7 @@ class _MainUserPageState extends State<MainUserPage> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar(BuildContext context, bool isMobile) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, bool isMobile, double screenWidth) {
     return AppBar(
       toolbarHeight: isMobile ? 70 : 80,
       elevation: 0,
@@ -502,7 +513,7 @@ class _MainUserPageState extends State<MainUserPage> {
                 isMobile ? 'GM PhoneShoppe' : 'GM PhoneShoppe - User Portal',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: isMobile ? 14 : 20,
+                  fontSize: screenWidth < 360 ? 12 : (isMobile ? 14 : 20),
                   fontWeight: FontWeight.bold,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -703,7 +714,7 @@ class _MainUserPageState extends State<MainUserPage> {
     );
   }
 
-  Widget _buildMobileDrawer(BuildContext context) {
+  Widget _buildMobileDrawer(BuildContext context, double screenWidth) {
     return Drawer(
       backgroundColor: const Color(0xFF0D0D0D),
       shape: const RoundedRectangleBorder(
@@ -722,8 +733,8 @@ class _MainUserPageState extends State<MainUserPage> {
                 children: [
                   // User avatar with initials
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: screenWidth < 360 ? 40 : 48,
+                    height: screenWidth < 360 ? 40 : 48,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
@@ -1334,25 +1345,14 @@ class _DashboardPageState extends State<_DashboardPage> {
 
     // Show feedback about what was refreshed
     if (mounted && refreshedCount > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            refreshedCount == services.length
-                ? 'All services refreshed from Firebase'
-                : 'Refreshed $refreshedCount service${refreshedCount > 1 ? 's' : ''} from Firebase',
-          ),
-          duration: const Duration(seconds: 2),
-          backgroundColor: const Color(0xFF2ECC71),
-        ),
+      SnackBarUtils.showSuccess(
+        context,
+        refreshedCount == services.length
+            ? 'All services refreshed from Firebase'
+            : 'Refreshed $refreshedCount service${refreshedCount > 1 ? 's' : ''} from Firebase',
       );
     } else if (mounted && refreshedCount == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All data is up to date from cache'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Color(0xFF3498DB),
-        ),
-      );
+      SnackBarUtils.showInfo(context, 'All data is up to date from cache');
     }
   }
 
@@ -1602,6 +1602,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                   SizedBox(height: isCompact ? 8 : 16),
                   LayoutBuilder(
                     builder: (context, constraints) {
+                      final screenWidth = constraints.maxWidth;
                       final isSlimPhone = constraints.maxWidth < 340;
                       final cardAspectRatio = isCompact
                           ? 2.5
@@ -1611,7 +1612,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                       return GridView.count(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 3,
+                        crossAxisCount: screenWidth < 360 ? 1 : (screenWidth < 600 ? 2 : 3),
                         mainAxisSpacing: spacing,
                         crossAxisSpacing: spacing,
                         childAspectRatio: cardAspectRatio,
@@ -2393,11 +2394,12 @@ class _UserStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderRadius = isCompact ? 12.0 : (isSlimPhone ? 16.0 : (isMobile ? 24.0 : 40.0));
-    final iconSize = isCompact ? 16.0 : (isSlimPhone ? 18.0 : (isMobile ? 24.0 : 32.0));
-    final valueSize = isCompact ? 14.0 : (isSlimPhone ? 16.0 : (isMobile ? 20.0 : 32.0));
-    final titleSize = isCompact ? 8.0 : (isSlimPhone ? 8.0 : (isMobile ? 10.0 : 14.0));
-    final padding = isCompact ? 8.0 : (isSlimPhone ? 8.0 : (isMobile ? 12.0 : 16.0));
+    // Match service card styling - rounded and consistent
+    final borderRadius = isCompact ? 10.0 : (isSlimPhone ? 16.0 : (isMobile ? 24.0 : 40.0));
+    final iconSize = isCompact ? 14.0 : (isSlimPhone ? 18.0 : (isMobile ? 22.0 : 28.0));
+    final valueSize = isCompact ? 12.0 : (isSlimPhone ? 14.0 : (isMobile ? 14.0 : 18.0));
+    final titleSize = isCompact ? 9.0 : (isSlimPhone ? 11.0 : (isMobile ? 11.0 : 13.0));
+    final padding = isCompact ? 6.0 : (isSlimPhone ? 10.0 : (isMobile ? 12.0 : 16.0));
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
@@ -2413,16 +2415,16 @@ class _UserStatCard extends StatelessWidget {
         child: Stack(
           clipBehavior: Clip.hardEdge,
           children: [
-            // Rounded rectangle decorative element - hide on slim phones
-            if (!isCompact && !isSlimPhone)
+            // Rounded rectangle decorative element - hide on mobile/slim phones
+            if (!isCompact && !isSlimPhone && !isMobile)
               Positioned(
-                top: isMobile ? -20 : -30,
-                right: isMobile ? -20 : -30,
+                top: -20,
+                right: -20,
                 child: Container(
-                  width: isMobile ? 80 : 120,
-                  height: isMobile ? 80 : 120,
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(isMobile ? 20 : 30),
+                    borderRadius: BorderRadius.circular(15),
                     color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
@@ -2433,7 +2435,7 @@ class _UserStatCard extends StatelessWidget {
                   ? Row(
                       children: [
                         Icon(icon, color: Colors.white, size: iconSize),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2469,7 +2471,7 @@ class _UserStatCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(icon, color: Colors.white, size: iconSize),
-                        SizedBox(height: isSlimPhone ? 2 : (isMobile ? 4 : 8)),
+                        SizedBox(height: isSlimPhone ? 2 : (isMobile ? 4 : 6)),
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           child: Text(

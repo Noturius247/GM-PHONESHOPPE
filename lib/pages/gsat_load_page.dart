@@ -223,106 +223,122 @@ class _GsatLoadPageState extends State<GsatLoadPage> {
   // Open GSAT Subscription Check (manual entry without scanner)
   void _openSubscriptionCheck() {
     final boxIdController = TextEditingController(text: _scannedBoxId ?? '');
+    final screenWidth = MediaQuery.of(context).size.width;
+    final dialogWidth = screenWidth < 360 ? screenWidth * 0.9 : 400.0;
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF2A1A1A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+        contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
         title: const Text(
           'Check GSAT Subscription',
           style: TextStyle(color: Colors.white),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: boxIdController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Box ID / Serial Number',
-                labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-                hintText: 'Enter Box ID',
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: dialogWidth),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: boxIdController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Box ID / Serial Number',
+                  labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+                  hintText: 'Enter Box ID',
+                  hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: primaryColor),
+                  ),
+                  prefixIcon: const Icon(Icons.qr_code, color: primaryColor),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: primaryColor),
-                ),
-                prefixIcon: const Icon(Icons.qr_code, color: primaryColor),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Select Plan Type:',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-          ],
+              const SizedBox(height: 16),
+              const Text(
+                'Select Plan Type:',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (boxIdController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a Box ID'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => GsatSubscriptionCheckPage(
-                    serialNumber: boxIdController.text,
-                    planType: '99',
-                  ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.spaceEvenly,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (boxIdController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a Box ID'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => GsatSubscriptionCheckPage(
+                        serialNumber: boxIdController.text,
+                        planType: '99',
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-            ),
-            child: const Text('Plan 99 (GPinoy)'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (boxIdController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please enter a Box ID'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-                return;
-              }
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => GsatSubscriptionCheckPage(
-                    serialNumber: boxIdController.text,
-                    planType: 'other',
-                  ),
+                child: const Text('Plan 99 (GPinoy)'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (boxIdController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please enter a Box ID'),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => GsatSubscriptionCheckPage(
+                        serialNumber: boxIdController.text,
+                        planType: 'other',
+                      ),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-            ),
-            child: const Text('Other Plans'),
+                child: const Text('Other Plans'),
+              ),
+            ],
           ),
         ],
       ),

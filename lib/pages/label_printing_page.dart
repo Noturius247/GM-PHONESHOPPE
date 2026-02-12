@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/inventory_service.dart';
 import 'ocr_scanner_page.dart';
+import '../utils/snackbar_utils.dart';
 
 class LabelPrintingPage extends StatefulWidget {
   final List<Map<String, dynamic>>? inventoryItems;
@@ -33,7 +34,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
   String _paperSize = 'A4'; // 'A4' or 'Legal'
 
   // Label dimensions using explicit mm conversion (1 inch = 25.4mm)
-  static final double _labelWidth = 25.4 * PdfPageFormat.mm;   // 1 inch
+  static final double _labelWidth = 38.1 * PdfPageFormat.mm;   // 1.5 inches
   static final double _labelHeight = 17.78 * PdfPageFormat.mm; // 0.70 inch
   static final double _labelGap = 1.5 * PdfPageFormat.mm;      // 1.5mm gap between labels
   static final double _pageMargin = 5.0 * PdfPageFormat.mm;    // 5mm margin
@@ -47,7 +48,8 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
   late TabController _tabController;
 
   // Barcode prefix settings (SKU starting digits that go to "Barcode" tab)
-  List<String> _barcodePrefixes = ['9'];
+  // Include both '7' (new random series) and '9' (old incremental series) for backward compatibility
+  List<String> _barcodePrefixes = ['7', '9'];
   static const String _prefixesKey = 'label_barcode_prefixes';
 
   @override
@@ -91,9 +93,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading inventory: $e')),
-        );
+        SnackBarUtils.showError(context, 'Error loading inventory: $e');
       }
     }
   }
@@ -266,12 +266,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
           }
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Selected: ${match['name']}'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          SnackBarUtils.showSuccess(context, 'Selected: ${match['name']}');
         }
       } else {
         // Fall back to search filter
@@ -280,12 +275,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
           _searchQuery = result.serialNumber!;
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('No exact match — filtered by: ${result.serialNumber}'),
-              backgroundColor: Colors.orange,
-            ),
-          );
+          SnackBarUtils.showWarning(context, 'No exact match — filtered by: ${result.serialNumber}');
         }
       }
     }
@@ -362,7 +352,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
     final name = _getName(item);
     final price = _getPrice(item);
     final brand = item['brand'] as String? ?? '';
-    final qrSize = 10.0 * PdfPageFormat.mm; // 10mm QR code
+    final qrSize = 17.78 * PdfPageFormat.mm; // 0.70 inch QR code (fills height)
 
     return pw.Container(
       width: _labelWidth,
@@ -419,7 +409,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
                   pw.Text(
                     price,
                     style: pw.TextStyle(
-                      fontSize: 5,
+                      fontSize: 8,
                       fontWeight: pw.FontWeight.bold,
                     ),
                     maxLines: 1,
@@ -428,7 +418,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
                 pw.Text(
                   sku,
                   style: pw.TextStyle(
-                    fontSize: 8,
+                    fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
                   ),
                   maxLines: 1,
@@ -444,9 +434,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
 
   Future<void> _printLabels() async {
     if (_selectedItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one item')),
-      );
+      SnackBarUtils.showWarning(context, 'Please select at least one item');
       return;
     }
 
@@ -461,9 +449,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Print error: $e'), backgroundColor: Colors.red),
-        );
+        SnackBarUtils.showError(context, 'Print error: $e');
       }
     }
   }
@@ -472,9 +458,7 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
 
   void _showPreview() {
     if (_selectedItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select at least one item')),
-      );
+      SnackBarUtils.showWarning(context, 'Please select at least one item');
       return;
     }
 
@@ -700,13 +684,14 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
   }
 
   Widget _buildControlBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: _cardColor,
       child: Row(
         children: [
           // Paper size dropdown
-          const Text('Paper: ', style: TextStyle(color: _textSecondary, fontSize: 13)),
+          Text('Paper: ', style: TextStyle(color: _textSecondary, fontSize: screenWidth < 360 ? 11 : 13)),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
             decoration: BoxDecoration(
@@ -732,8 +717,10 @@ class _LabelPrintingPageState extends State<LabelPrintingPage> with SingleTicker
           Expanded(
             child: Text(
               '$_totalLabels labels | $_totalPages page${_totalPages != 1 ? 's' : ''} | ${_columnsPerPage}x$_rowsPerPage grid',
-              style: const TextStyle(color: _textSecondary, fontSize: 12),
+              style: TextStyle(color: _textSecondary, fontSize: screenWidth < 360 ? 10 : 12),
               textAlign: TextAlign.right,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1063,7 +1050,7 @@ class _LabelPreviewDialog extends StatelessWidget {
     // Scale the paper to fit in dialog
     final pageFormat = paperSize == 'A4' ? PdfPageFormat.a4 : PdfPageFormat.legal;
     final screenWidth = MediaQuery.of(context).size.width;
-    final dialogWidth = screenWidth * 0.9;
+    final dialogWidth = screenWidth < 360 ? screenWidth * 0.95 : (screenWidth * 0.9).clamp(300, 800);
     final scale = (dialogWidth - 48) / pageFormat.width; // 48 = dialog padding
     final scaledHeight = pageFormat.height * scale;
 
@@ -1100,7 +1087,7 @@ class _LabelPreviewDialog extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
-              '${labels.length} labels on $totalPages page${totalPages != 1 ? 's' : ''} • ${columns}x$rows grid • Each label: 1" x 0.70"',
+              '${labels.length} labels on $totalPages page${totalPages != 1 ? 's' : ''} • ${columns}x$rows grid • Each label: 1.5" x 0.70"',
               style: const TextStyle(color: _textSecondary, fontSize: 12),
             ),
           ),
@@ -1140,7 +1127,7 @@ class _LabelPreviewDialog extends StatelessWidget {
                         final price = getPrice(item);
                         final scaledW = labelWidth * scale;
                         final scaledH = labelHeight * scale;
-                        final qrSize = scaledH * 0.7;
+                        final qrSize = scaledH; // QR fills full height
 
                         return Container(
                           width: scaledW,
@@ -1195,7 +1182,7 @@ class _LabelPreviewDialog extends StatelessWidget {
                                       Text(
                                         price,
                                         style: TextStyle(
-                                          fontSize: (5 * scale).clamp(2.0, 8.0),
+                                          fontSize: (8 * scale).clamp(2.0, 12.0),
                                           fontWeight: FontWeight.bold,
                                           color: Colors.black,
                                         ),
@@ -1204,7 +1191,7 @@ class _LabelPreviewDialog extends StatelessWidget {
                                     Text(
                                       sku,
                                       style: TextStyle(
-                                        fontSize: (8 * scale).clamp(3.0, 12.0),
+                                        fontSize: (12 * scale).clamp(4.0, 18.0),
                                         fontWeight: FontWeight.bold,
                                         color: Colors.black,
                                       ),

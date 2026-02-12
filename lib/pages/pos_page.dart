@@ -17,6 +17,7 @@ import 'settings_page.dart';
 import 'ocr_scanner_page.dart';
 import 'multi_scanner_page.dart';
 import '../services/beep_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class POSPage extends StatefulWidget {
   const POSPage({super.key});
@@ -40,6 +41,7 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
   String _currentUserEmail = '';
   String _currentUserName = '';
   String _paymentMethod = 'cash';
+  String _feeHandling = 'customer_pays'; // customer_pays, business_absorbs
   Map<String, dynamic>? _selectedBasket; // Currently selected basket for processing
   String? _expandedProductId; // Track which product tile is expanded in mobile view
 
@@ -58,6 +60,12 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
   bool _isSyncingFromRemote = false; // prevents echo writes
   bool _isSyncingToFirebase = false; // prevents re-entrant writes
   Timer? _syncDebounce;
+
+  // Discount mode state
+  bool _discountModeEnabled = false;
+  Map<String, dynamic>? _discountAuthorizedBy; // Staff who enabled discount mode
+  Map<int, double> _discountedPrices = {}; // cartItemIndex → discounted price
+  Map<int, double> _originalPrices = {}; // cartItemIndex → original price
 
   // Dark theme colors
   static const Color _bgColor = Color(0xFF1A0A0A);
@@ -325,7 +333,13 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+        final screenWidth = size.width;
+        final screenHeight = size.height;
+        final isLandscape = screenWidth > screenHeight;
+
+        final dialog = AlertDialog(
         backgroundColor: _cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
@@ -450,31 +464,55 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
               });
               _syncCartToFirebase();
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Added: $name'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              SnackBarUtils.showSuccess(context, 'Added: $name');
             },
             icon: const Icon(Icons.add, size: 18),
             label: const Text('Add to Cart'),
           ),
         ],
-      ),
+      );
+
+      if (isLandscape) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: screenWidth * 0.5,
+                  maxHeight: screenHeight * 0.9,
+                ),
+                child: dialog,
+              ),
+            ),
+          ),
+        );
+      }
+      return dialog;
+      },
     );
   }
 
   void _showCashInDialog() {
     String selectedProvider = 'GCash';
     String selectedType = 'Cash-In';
+    String feeHandlingScenario = 'fee_included'; // fee_included, fee_separate, auto_deduct
     final amountController = TextEditingController();
     final feeController = TextEditingController();
     final refController = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
+      builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+        final screenWidth = size.width;
+        final screenHeight = size.height;
+        final isLandscape = screenWidth > screenHeight;
+
+        final dialog = StatefulBuilder(
         builder: (ctx, setDialogState) {
           final providerColor = selectedProvider == 'GCash' ? const Color(0xFF007BFF) : const Color(0xFF2ECC71);
           return AlertDialog(
@@ -528,6 +566,15 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                     controller: amountController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(color: _textPrimary),
+                    onChanged: (value) {
+                      // Auto-calculate 2% fee when amount is entered
+                      final amount = double.tryParse(value) ?? 0;
+                      if (amount > 0) {
+                        setDialogState(() {
+                          feeController.text = (amount * 0.02).toStringAsFixed(2);
+                        });
+                      }
+                    },
                     decoration: InputDecoration(
                       labelText: 'Amount *',
                       labelStyle: const TextStyle(color: _textSecondary),
@@ -546,12 +593,71 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  // Fee Handling Scenario
+                  Text(
+                    'Fee Handling:',
+                    style: TextStyle(color: _textSecondary, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  ...['fee_included', 'fee_separate', 'auto_deduct'].map((scenario) {
+                    final labels = {
+                      'fee_included': 'Fee Included in Amount',
+                      'fee_separate': 'Fee Given to Cashier',
+                      'auto_deduct': 'Auto Deduct 2%',
+                    };
+                    return InkWell(
+                      onTap: () {
+                        setDialogState(() {
+                          feeHandlingScenario = scenario;
+                          if (scenario == 'auto_deduct') {
+                            final amount = double.tryParse(amountController.text) ?? 0;
+                            if (amount > 0) {
+                              feeController.text = (amount * 0.02).toStringAsFixed(2);
+                            }
+                          }
+                        });
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: feeHandlingScenario == scenario ? providerColor.withValues(alpha: 0.15) : _bgColor,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: feeHandlingScenario == scenario ? providerColor : _textSecondary.withValues(alpha: 0.3),
+                            width: feeHandlingScenario == scenario ? 2 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              feeHandlingScenario == scenario ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                              color: feeHandlingScenario == scenario ? providerColor : _textSecondary,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                labels[scenario]!,
+                                style: TextStyle(
+                                  color: feeHandlingScenario == scenario ? providerColor : _textPrimary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: feeController,
+                    readOnly: true,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     style: const TextStyle(color: _textPrimary),
                     decoration: InputDecoration(
-                      labelText: 'Service Fee',
+                      labelText: 'Service Fee (auto-calculated)',
                       labelStyle: const TextStyle(color: _textSecondary),
                       prefixText: '\u20B1 ',
                       prefixStyle: const TextStyle(color: _textPrimary),
@@ -601,7 +707,8 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                 ),
                 onPressed: () {
                   final amount = double.tryParse(amountController.text.trim()) ?? 0;
-                  final fee = double.tryParse(feeController.text.trim()) ?? 0;
+                  // Always calculate fee as 2% of amount, regardless of text field value
+                  final fee = amount * 0.02;
                   final ref = refController.text.trim();
 
                   if (amount <= 0) {
@@ -613,11 +720,43 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
 
                   Navigator.pop(ctx);
 
+                  // Calculate selling price based on fee handling scenario
+                  double sellingPrice;
+                  double actualCashGiven;
+
+                  switch (feeHandlingScenario) {
+                    case 'fee_included':
+                      // Fee included in system/e-wallet transaction
+                      // System charges: amount + fee (e.g., ₱5,100 in e-wallet)
+                      // Actual cash given/received: amount (e.g., ₱5,000)
+                      // Business keeps: fee (e.g., ₱100)
+                      sellingPrice = amount + fee;
+                      actualCashGiven = amount;
+                      break;
+                    case 'fee_separate':
+                      // Fee collected as physical cash to cashier (not in e-wallet, but still business revenue)
+                      // System records: amount + fee (total customer pays)
+                      // Physical cash: fee goes to cashier to deposit
+                      // Cash-Out: System ₱5,000 + Cashier ₱100 = ₱5,100 total, send ₱5,000
+                      // Cash-In: System ₱5,000 + Cashier ₱100 = ₱5,100 total, customer gets ₱5,000
+                      sellingPrice = amount + fee;
+                      actualCashGiven = amount;
+                      break;
+                    case 'auto_deduct':
+                      // Auto deduct fee from amount (for both Cash-Out and Cash-In)
+                      sellingPrice = amount;
+                      actualCashGiven = amount - fee;
+                      break;
+                    default:
+                      sellingPrice = amount + fee;
+                      actualCashGiven = selectedType == 'Cash-Out' ? amount : 0;
+                  }
+
                   final itemName = '$selectedProvider $selectedType${ref.isNotEmpty ? ' (Ref: $ref)' : ''}';
                   setState(() {
                     _cartItems.add({
                       'name': itemName,
-                      'sellingPrice': amount + fee,
+                      'sellingPrice': sellingPrice,
                       'cartQuantity': 1,
                       '_isCustomItem': true,
                       '_cashInProvider': selectedProvider,
@@ -625,16 +764,20 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                       '_cashInAmount': amount,
                       '_cashInFee': fee,
                       '_cashInRef': ref,
+                      '_cashInFeeHandling': feeHandlingScenario,
+                      '_actualCashGiven': actualCashGiven,
                     });
                   });
                   _syncCartToFirebase();
 
-                  final snackColor = selectedType == 'Cash-Out' ? const Color(0xFFE67E22) : providerColor;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Added: $selectedProvider $selectedType \u20B1${amount.toStringAsFixed(2)}${fee > 0 ? ' + \u20B1${fee.toStringAsFixed(2)} fee' : ''}'),
-                      backgroundColor: snackColor,
-                    ),
+                  SnackBarUtils.showEWalletAdded(
+                    context,
+                    provider: selectedProvider,
+                    type: selectedType,
+                    sellingPrice: sellingPrice,
+                    fee: fee,
+                    actualCashGiven: actualCashGiven,
+                    feeHandling: feeHandlingScenario,
                   );
                 },
                 icon: const Icon(Icons.add, size: 18),
@@ -643,7 +786,29 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
             ],
           );
         },
-      ),
+      );
+
+      if (isLandscape) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: screenWidth * 0.5,
+                  maxHeight: screenHeight * 0.9,
+                ),
+                child: dialog,
+              ),
+            ),
+          ),
+        );
+      }
+      return dialog;
+      },
     );
   }
 
@@ -747,19 +912,9 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
     if (match != null) {
       BeepService.playBeep();
       _addToCart(match);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Added: ${match['name']}'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      SnackBarUtils.showSuccess(context, 'Added: ${match['name']}');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Product not found for: $scannedValue'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      SnackBarUtils.showError(context, 'Product not found for: $scannedValue');
     }
   }
 
@@ -777,9 +932,13 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
 
   double get _total {
     double total = 0;
-    for (var item in _cartItems) {
-      final price = (item['sellingPrice'] as num?)?.toDouble() ??
-                   (item['unitPrice'] as num?)?.toDouble() ?? 0;
+    for (int i = 0; i < _cartItems.length; i++) {
+      final item = _cartItems[i];
+
+      // Use discounted price if available, otherwise use selling price
+      final price = (item['_discountedPrice'] as double?) ??
+                    (item['sellingPrice'] as num?)?.toDouble() ??
+                    (item['unitPrice'] as num?)?.toDouble() ?? 0;
       final qty = item['cartQuantity'] as int? ?? 1;
       total += price * qty;
     }
@@ -801,7 +960,21 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
   }
 
   double get _netAmount => _vatInclusive ? _total - _vatAmount : _total;
-  double get _grandTotal => _vatInclusive ? _total : _total + _vatAmount;
+
+  // No transaction fee - all payment methods treated equally
+  double get _transactionFee {
+    return 0;
+  }
+
+  double get _grandTotal {
+    final baseTotal = _vatInclusive ? _total : _total + _vatAmount;
+    return baseTotal;
+  }
+
+  // Net amount business receives (same as grand total)
+  double get _netReceived {
+    return _grandTotal;
+  }
 
   void _addToCart(Map<String, dynamic> item) {
     // Don't allow adding items if processing a basket
@@ -865,11 +1038,72 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
       _selectedBasket = null;
       _customerNameController.clear();
       _cashReceivedController.clear();
+
+      // Clear discount state
+      _discountModeEnabled = false;
+      _discountAuthorizedBy = null;
+      _discountedPrices.clear();
+      _originalPrices.clear();
     });
     if (_currentUserEmail.isNotEmpty) {
       PosLiveCartService.clearCart(_currentUserEmail);
     }
   }
+
+  // ==================== DISCOUNT MODE ====================
+
+  Future<void> _toggleDiscountMode() async {
+    if (_discountModeEnabled) {
+      // Turning OFF discount mode - no PIN needed
+      setState(() {
+        _discountModeEnabled = false;
+        _discountAuthorizedBy = null;
+      });
+      SnackBarUtils.showWarning(context, 'Discount mode disabled');
+    } else {
+      // Turning ON discount mode - require PIN verification
+      final staffInfo = await showDialog<Map<String, dynamic>>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const PinEntryDialog(),
+      );
+
+      if (staffInfo != null) {
+        setState(() {
+          _discountModeEnabled = true;
+          _discountAuthorizedBy = staffInfo;
+        });
+        SnackBarUtils.showSuccess(context, 'Discount mode enabled by ${staffInfo['name']}');
+      }
+    }
+  }
+
+  void _updateDiscountedPrice(int itemIndex, String value, double originalPrice) {
+    final newPrice = double.tryParse(value);
+    if (newPrice != null && newPrice >= 0) {
+      setState(() {
+        if (!_originalPrices.containsKey(itemIndex)) {
+          _originalPrices[itemIndex] = originalPrice;
+        }
+        _discountedPrices[itemIndex] = newPrice;
+
+        // Update the cart item with new price
+        _cartItems[itemIndex]['_discountedPrice'] = newPrice;
+        _cartItems[itemIndex]['_originalPrice'] = originalPrice;
+      });
+    }
+  }
+
+  void _resetItemPrice(int itemIndex) {
+    setState(() {
+      _discountedPrices.remove(itemIndex);
+      _cartItems[itemIndex].remove('_discountedPrice');
+      _cartItems[itemIndex].remove('_originalPrice');
+    });
+    SnackBarUtils.showInfo(context, 'Price reset to original', duration: const Duration(seconds: 1));
+  }
+
+  // ==================== FIREBASE SYNC ====================
 
   /// Push the entire local cart state to Firebase for cross-device sync.
   void _syncCartToFirebase() {
@@ -1043,6 +1277,11 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
       final items = _cartItems.map((item) {
         final isCashOut = item['_cashInType'] == 'Cash-Out';
         final isCashIn = item['_cashInType'] == 'Cash-In';
+        final hasDiscount = item['_discountedPrice'] != null;
+        final finalPrice = (item['_discountedPrice'] as double?) ??
+                          (item['sellingPrice'] as num?)?.toDouble() ??
+                          (item['unitPrice'] as num?)?.toDouble() ?? 0;
+
         return {
           'itemId': item['id'] ?? item['itemId'],
           'name': item['name'],
@@ -1050,28 +1289,46 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
           'category': item['category'],
           'serialNo': item['sku'] ?? item['serialNo'],
           'quantity': item['cartQuantity'],
-          'unitPrice': item['sellingPrice'] ?? item['unitPrice'],
-          'subtotal': ((item['sellingPrice'] ?? item['unitPrice']) as num? ?? 0) * (item['cartQuantity'] as int? ?? 1),
+          'unitPrice': finalPrice,
+          'subtotal': finalPrice * (item['cartQuantity'] as int? ?? 1),
+          // Discount fields (if this item was discounted)
+          if (hasDiscount) ...{
+            'originalPrice': item['_originalPrice'],
+            'discountedPrice': item['_discountedPrice'],
+            'discountAmount': (item['_originalPrice'] as double? ?? 0) - (item['_discountedPrice'] as double? ?? 0),
+          },
           // Cash-out/Cash-in specific fields
           if (isCashOut || isCashIn) ...{
             'isCashOut': isCashOut,
             'isCashIn': isCashIn,
-            'cashOutAmount': item['_cashInAmount'] ?? 0,
+            // cashOutAmount represents the principal (actual money that goes out/in)
+            // For fee_included/fee_separate: principal = full amount
+            // For auto_deduct: principal = amount after deduction (actualCashGiven)
+            'cashOutAmount': item['_actualCashGiven'] ?? (item['_cashInAmount'] ?? 0),
             'serviceFee': item['_cashInFee'] ?? 0,
+            'feeHandling': item['_cashInFeeHandling'] ?? 'fee_included',
+            'actualCashGiven': item['_actualCashGiven'] ?? (item['_cashInAmount'] ?? 0),
             'provider': item['_cashInProvider'],
             'referenceNo': item['_cashInRef'],
           },
         };
       }).toList();
 
-      // Calculate cash-out summary for this transaction
+      // Calculate cash-out and cash-in summary for this transaction
       double totalCashOutAmount = 0;
+      double totalCashInAmount = 0;
       double totalServiceFee = 0;
       bool hasCashOut = false;
+      bool hasCashIn = false;
       for (var item in items) {
         if (item['isCashOut'] == true) {
           hasCashOut = true;
           totalCashOutAmount += (item['cashOutAmount'] as num?)?.toDouble() ?? 0;
+          totalServiceFee += (item['serviceFee'] as num?)?.toDouble() ?? 0;
+        }
+        if (item['isCashIn'] == true) {
+          hasCashIn = true;
+          totalCashInAmount += (item['cashOutAmount'] as num?)?.toDouble() ?? 0;
           totalServiceFee += (item['serviceFee'] as num?)?.toDouble() ?? 0;
         }
       }
@@ -1084,12 +1341,25 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
         'vatRate': _vatRate,
         'vatInclusive': _vatInclusive,
         'vatAmount': _vatAmount,
+        'transactionFee': _transactionFee,
+        'feeHandling': _feeHandling,
+        'netReceived': _netReceived,
         'total': _grandTotal,
-        // For reporting: actual revenue excludes cash-out principal amounts
-        'actualRevenue': _grandTotal - totalCashOutAmount,
+        // For reporting: actual revenue excludes cash-out and cash-in principal amounts
+        // Revenue = total sales - cash-out principal - cash-in principal (only service fees count as revenue)
+        'actualRevenue': _grandTotal - totalCashOutAmount - totalCashInAmount,
         'totalCashOutAmount': totalCashOutAmount,
+        'totalCashInAmount': totalCashInAmount,
         'totalServiceFee': totalServiceFee,
         'hasCashOut': hasCashOut,
+        'hasCashIn': hasCashIn,
+        // Discount tracking fields
+        'hasDiscounts': _discountedPrices.isNotEmpty,
+        if (_discountedPrices.isNotEmpty && _discountAuthorizedBy != null) ...{
+          'discountAuthorizedBy': _discountAuthorizedBy!['name'],
+          'discountAuthorizedByEmail': _discountAuthorizedBy!['email'],
+          'discountAuthorizedByUserId': _discountAuthorizedBy!['userId'],
+        },
         'paymentMethod': _paymentMethod,
         'customerName': _customerNameController.text.trim(),
         'cashReceived': _paymentMethod == 'cash'
@@ -1121,63 +1391,22 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
 
       // Print receipt and open cash drawer if printer is connected
       if (PrinterService.isConnected) {
-        bool printed = await PrinterService.printReceiptAndOpenDrawer(transaction);
+        bool printConfirmed = false;
 
-        // If print failed, show retry dialog
-        while (!printed && mounted) {
-          final action = await showDialog<String>(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: _cardColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
-                children: [
-                  Icon(Icons.print_disabled, color: Colors.orange, size: 28),
-                  SizedBox(width: 12),
-                  Text('Print Failed', style: TextStyle(color: _textPrimary)),
-                ],
-              ),
-              content: const Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'The receipt could not be printed.',
-                    style: TextStyle(color: _textSecondary, fontSize: 14),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Please check:\n• Paper is loaded\n• Printer is on\n• Bluetooth is connected',
-                    style: TextStyle(color: _textSecondary, fontSize: 13),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, 'skip'),
-                  child: const Text('Skip Print', style: TextStyle(color: _textSecondary)),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _accentColor,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () => Navigator.pop(ctx, 'retry'),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
+        while (!printConfirmed && mounted) {
+          // Attempt to print
+          await PrinterService.printReceiptAndOpenDrawer(transaction);
 
-          if (action == 'retry') {
+          // Show receipt and ask cashier if it printed successfully
+          final action = await _showPrintConfirmationDialog(transaction);
+
+          if (action == 'yes') {
+            // Print confirmed, exit loop
+            printConfirmed = true;
+          } else if (action == 'retry') {
             // Update connection status and retry
             await PrinterService.updateConnectionStatus();
-            if (PrinterService.isConnected) {
-              printed = await PrinterService.printReceiptAndOpenDrawer(transaction);
-            }
-            // Check mounted before next loop iteration
+            // Loop will continue and attempt print again
             if (!mounted) break;
           } else {
             // User chose to skip printing
@@ -1187,6 +1416,7 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
             if (needsDrawer) {
               await PrinterService.openCashDrawer();
             }
+            printConfirmed = true; // Exit loop even though we skipped
             break;
           }
         }
@@ -1724,20 +1954,52 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                             style: const TextStyle(color: _textSecondary, fontSize: 10),
                           ),
                         ),
+                      if (_transactionFee > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            _feeHandling == 'customer_pays'
+                                ? 'Transaction Fee (2%): +${currencyFormat.format(_transactionFee)}'
+                                : 'Fee Deducted (2%): -${currencyFormat.format(_transactionFee)}',
+                            style: TextStyle(
+                              color: _feeHandling == 'customer_pays' ? _textSecondary : Colors.orange,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
 
                 // Payment Method
-                Row(
-                  children: [
-                    Expanded(child: _buildPaymentMethodButton('cash', Icons.money, 'Cash', setDialogState)),
-                    const SizedBox(width: 6),
-                    Expanded(child: _buildPaymentMethodButton('card', Icons.credit_card, 'Card', setDialogState)),
-                    const SizedBox(width: 6),
-                    Expanded(child: _buildPaymentMethodButton('gcash/maya', Icons.phone_android, 'GCash/Maya', setDialogState)),
-                  ],
+                Builder(
+                  builder: (context) {
+                    // Check if cart has Cash-In/Cash-Out with auto_deduct scenario
+                    final hasAutoDeductEWallet = _cartItems.any((item) {
+                      final isCashInOut = item['_cashInType'] == 'Cash-In' || item['_cashInType'] == 'Cash-Out';
+                      final isAutoDeduct = item['_cashInFeeHandling'] == 'auto_deduct';
+                      return isCashInOut && isAutoDeduct;
+                    });
+
+                    // Auto-switch from cash if disabled
+                    if (hasAutoDeductEWallet && _paymentMethod == 'cash') {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        setDialogState(() => _paymentMethod = 'card');
+                        setState(() {});
+                      });
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: _buildPaymentMethodButton('cash', Icons.money, 'Cash', setDialogState, disabled: hasAutoDeductEWallet)),
+                        const SizedBox(width: 6),
+                        Expanded(child: _buildPaymentMethodButton('card', Icons.credit_card, 'Card', setDialogState)),
+                        const SizedBox(width: 6),
+                        Expanded(child: _buildPaymentMethodButton('gcash/maya', Icons.phone_android, 'GCash/Maya', setDialogState)),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
 
@@ -2181,63 +2443,77 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
     );
   }
 
-  Widget _buildPaymentMethodButton(String method, IconData icon, String label, StateSetter setDialogState) {
+  Widget _buildPaymentMethodButton(String method, IconData icon, String label, StateSetter setDialogState, {bool disabled = false}) {
     final isSelected = _paymentMethod == method;
     return InkWell(
-      onTap: () {
+      onTap: disabled ? null : () {
         setDialogState(() => _paymentMethod = method);
         setState(() {});
       },
       borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-        decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(colors: [Color(0xFFE67E22), Color(0xFFD35400)])
-              : null,
-          color: isSelected ? null : _bgColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? _accentColor : _textSecondary.withValues(alpha: 0.2),
-            width: isSelected ? 1.5 : 1,
+      child: Opacity(
+        opacity: disabled ? 0.4 : 1.0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+          decoration: BoxDecoration(
+            gradient: isSelected && !disabled
+                ? const LinearGradient(colors: [Color(0xFFE67E22), Color(0xFFD35400)])
+                : null,
+            color: isSelected && !disabled ? null : _bgColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: disabled
+                  ? _textSecondary.withValues(alpha: 0.1)
+                  : (isSelected ? _accentColor : _textSecondary.withValues(alpha: 0.2)),
+              width: isSelected && !disabled ? 1.5 : 1,
+            ),
+            boxShadow: isSelected && !disabled
+                ? [BoxShadow(color: _accentColor.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))]
+                : null,
           ),
-          boxShadow: isSelected
-              ? [BoxShadow(color: _accentColor.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 2))]
-              : null,
-        ),
-        child: Column(
-          children: [
-            Stack(
-              alignment: Alignment.topRight,
-              children: [
-                Icon(icon, color: isSelected ? Colors.white : _textSecondary, size: 24),
-                if (isSelected)
-                  Container(
-                    padding: const EdgeInsets.all(1),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
+          child: Column(
+            children: [
+              Stack(
+                alignment: Alignment.topRight,
+                children: [
+                  Icon(icon, color: disabled ? _textSecondary.withValues(alpha: 0.5) : (isSelected ? Colors.white : _textSecondary), size: 24),
+                  if (isSelected && !disabled)
+                    Container(
+                      padding: const EdgeInsets.all(1),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check_circle, color: Color(0xFFE67E22), size: 10),
                     ),
-                    child: const Icon(Icons.check_circle, color: Color(0xFFE67E22), size: 10),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : _textSecondary,
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                ),
-                maxLines: 1,
-                textAlign: TextAlign.center,
+                  if (disabled)
+                    Container(
+                      padding: const EdgeInsets.all(1),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.block, color: Colors.red.withValues(alpha: 0.7), size: 12),
+                    ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 5),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: disabled ? _textSecondary.withValues(alpha: 0.5) : (isSelected ? Colors.white : _textSecondary),
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2621,9 +2897,15 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
+      builder: (context) {
+        final size = MediaQuery.of(context).size;
+        final screenWidth = size.width;
+        final isSlimPhone = screenWidth < 360;
+        final horizontalPadding = isSlimPhone ? 12.0 : 24.0;
+
+        return Dialog(
         backgroundColor: const Color(0xFF1E1E1E),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        insetPadding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
@@ -2647,16 +2929,18 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                     Icon(
                       isOffline ? Icons.cloud_off_rounded : Icons.check_circle_rounded,
                       color: isOffline ? Colors.orange : Colors.green,
-                      size: 48,
+                      size: isSlimPhone ? 40 : 48,
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: isSlimPhone ? 8 : 10),
                     Text(
                       isOffline ? 'Saved Offline' : 'Sale Complete!',
                       style: TextStyle(
                         color: isOffline ? Colors.orange : Colors.green,
-                        fontSize: 18,
+                        fontSize: isSlimPhone ? 16 : 18,
                         fontWeight: FontWeight.bold,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                     if (isOffline)
                       Padding(
@@ -2673,10 +2957,10 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
               // Receipt body
               Flexible(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  padding: EdgeInsets.fromLTRB(isSlimPhone ? 12 : 20, 16, isSlimPhone ? 12 : 20, 0),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(isSlimPhone ? 12 : 16),
                     decoration: BoxDecoration(
                       color: _bgColor,
                       borderRadius: BorderRadius.circular(12),
@@ -2719,6 +3003,8 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                               Text(
                                 'Transaction #${transaction['transactionId']}',
                                 style: TextStyle(color: _textSecondary, fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
                               Text(
                                 DateFormat('MMM dd, yyyy hh:mm a').format(DateTime.parse(transaction['timestamp'])),
@@ -2732,6 +3018,7 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                         ...items.map((item) {
                           final isCashOut = item['isCashOut'] == true;
                           final isCashIn = item['isCashIn'] == true;
+                          final hasDiscount = item['discountAmount'] != null && (item['discountAmount'] as num) > 0;
 
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -2745,23 +3032,66 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                                       Text(
                                         item['name'],
                                         style: TextStyle(
-                                          color: isCashOut ? const Color(0xFFE67E22) : _textPrimary,
+                                          color: hasDiscount ? Colors.green : (isCashOut ? const Color(0xFFE67E22) : _textPrimary),
                                           fontSize: 12,
                                         ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
+                                      if (hasDiscount) ...[
+                                        Text(
+                                          'Before: ${currencyFormat.format(item['originalPrice'])} → After: ${currencyFormat.format(item['discountedPrice'])}',
+                                          style: TextStyle(
+                                            color: Colors.green.withValues(alpha: 0.7),
+                                            fontSize: 10,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Saved: ${currencyFormat.format(item['discountAmount'])}',
+                                          style: TextStyle(
+                                            color: Colors.green.withValues(alpha: 0.9),
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
                                       if (isCashOut || isCashIn) ...[
                                         Text(
-                                          isCashOut ? 'Cash Given: ${currencyFormat.format(item['cashOutAmount'])}' : 'Cash Received: ${currencyFormat.format(item['cashOutAmount'])}',
-                                          style: TextStyle(color: isCashOut ? Colors.red : Colors.green, fontSize: 10),
+                                          isCashOut
+                                              ? 'Cash Given: ${currencyFormat.format(item['actualCashGiven'] ?? item['cashOutAmount'])}'
+                                              : 'Cash Received: ${currencyFormat.format(item['actualCashGiven'] ?? item['cashOutAmount'])}',
+                                          style: TextStyle(color: isCashOut ? Colors.red : Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
                                         ),
-                                        Text(
-                                          'Service Fee: ${currencyFormat.format(item['serviceFee'])}',
-                                          style: TextStyle(color: _textSecondary, fontSize: 10),
-                                        ),
-                                      ] else
+                                        if (item['feeHandling'] == 'fee_included')
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])} (included)',
+                                            style: TextStyle(color: _textSecondary, fontSize: 9, fontStyle: FontStyle.italic),
+                                          )
+                                        else if (item['feeHandling'] == 'fee_separate')
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])} (to cashier)',
+                                            style: TextStyle(color: Colors.orange, fontSize: 9, fontStyle: FontStyle.italic),
+                                          )
+                                        else if (item['feeHandling'] == 'auto_deduct')
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])} (deducted)',
+                                            style: TextStyle(color: Colors.orange, fontSize: 9, fontStyle: FontStyle.italic),
+                                          )
+                                        else
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])}',
+                                            style: TextStyle(color: _textSecondary, fontSize: 10),
+                                          ),
+                                      ] else if (!hasDiscount)
                                         Text(
                                           '${item['quantity']} x ${currencyFormat.format(item['unitPrice'])}',
                                           style: TextStyle(color: _textSecondary, fontSize: 10),
+                                        ),
+                                      if (hasDiscount && !isCashOut && !isCashIn)
+                                        Text(
+                                          '${item['quantity']} x ${currencyFormat.format(item['unitPrice'])}',
+                                          style: TextStyle(color: Colors.green.withValues(alpha: 0.8), fontSize: 10),
                                         ),
                                     ],
                                   ),
@@ -2807,6 +3137,28 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                               currencyFormat.format(transaction['vatAmount'] ?? 0),
                             ),
                           ),
+                        if (((transaction['transactionFee'] as num?)?.toDouble() ?? 0) > 0) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: _receiptRow(
+                              transaction['feeHandling'] == 'customer_pays'
+                                  ? 'Transaction Fee (2%)'
+                                  : 'Fee Absorbed (2%)',
+                              transaction['feeHandling'] == 'customer_pays'
+                                  ? '+${currencyFormat.format(transaction['transactionFee'] ?? 0)}'
+                                  : '-${currencyFormat.format(transaction['transactionFee'] ?? 0)}',
+                            ),
+                          ),
+                          if (transaction['feeHandling'] == 'business_absorbs')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: _receiptRow(
+                                'Net Received',
+                                currencyFormat.format(transaction['netReceived'] ?? transaction['total']),
+                                isBold: true,
+                              ),
+                            ),
+                        ],
                         const SizedBox(height: 8),
                         _receiptRow('Payment', transaction['paymentMethod'].toString().toUpperCase()),
                         if (transaction['paymentMethod'] == 'cash') ...[
@@ -2860,6 +3212,39 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                             ),
                           ),
                         ],
+                        // Discount summary (if discounts were applied)
+                        if (transaction['hasDiscounts'] == true) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.discount, color: Colors.green, size: 14),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      'DISCOUNTS APPLIED',
+                                      style: TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Authorized by: ${transaction['discountAuthorizedBy'] ?? 'Unknown'}',
+                                  style: TextStyle(color: _textSecondary, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         _dashedDivider(),
                         Center(
                           child: Text(
@@ -2875,7 +3260,7 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
 
               // Action buttons
               Padding(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(isSlimPhone ? 12 : 20),
                 child: Row(
                   children: [
                     Expanded(
@@ -2884,10 +3269,15 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _textSecondary,
                           side: BorderSide(color: _textSecondary.withValues(alpha: 0.3)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(vertical: isSlimPhone ? 12 : 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Skip'),
+                        child: Text(
+                          'Skip',
+                          style: TextStyle(fontSize: isSlimPhone ? 13 : 14),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -2897,13 +3287,21 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _accentColor,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: EdgeInsets.symmetric(vertical: isSlimPhone ? 12 : 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
                         onPressed: () => Navigator.pop(context, true),
-                        icon: const Icon(Icons.print, size: 18),
-                        label: const Text('Print & Save', style: TextStyle(fontWeight: FontWeight.bold)),
+                        icon: Icon(Icons.print, size: isSlimPhone ? 16 : 18),
+                        label: Text(
+                          isSlimPhone ? 'Print' : 'Print & Save',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: isSlimPhone ? 13 : 14,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
                     ),
                   ],
@@ -2912,7 +3310,8 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
             ],
           ),
         ),
-      ),
+      );
+      },
     );
   }
 
@@ -2940,6 +3339,454 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
           ),
         ],
       ),
+    );
+  }
+
+  Future<String?> _showPrintConfirmationDialog(Map<String, dynamic> transaction) {
+    final currencyFormat = NumberFormat.currency(symbol: '₱', decimalDigits: 2);
+    final items = transaction['items'] as List<dynamic>;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final size = MediaQuery.of(context).size;
+        final screenWidth = size.width;
+        final screenHeight = size.height;
+        final isLandscape = screenWidth > screenHeight;
+        final isSlimPhone = screenWidth < 360;
+        final isSmallLandscape = isLandscape && screenWidth < 600;
+        final horizontalPadding = isSlimPhone ? 12.0 : (isLandscape ? (isSmallLandscape ? 16.0 : 40.0) : 24.0);
+
+        return Dialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        insetPadding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: isLandscape ? 16 : 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: isLandscape ? (isSmallLandscape ? 500 : 650) : 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Status header
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.symmetric(vertical: isSmallLandscape ? 12 : (isSlimPhone ? 16 : 20)),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_accentColor.withValues(alpha: 0.2), _accentColor.withValues(alpha: 0.05)],
+                  ),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.print,
+                      color: _accentColor,
+                      size: isSmallLandscape ? 36 : (isSlimPhone ? 40 : 48),
+                    ),
+                    SizedBox(height: isSmallLandscape ? 6 : 10),
+                    Text(
+                      'Did it print?',
+                      style: TextStyle(
+                        color: _accentColor,
+                        fontSize: isSmallLandscape ? 15 : (isSlimPhone ? 16 : 18),
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Verify the receipt printed correctly',
+                        style: TextStyle(
+                          color: _textSecondary,
+                          fontSize: isSmallLandscape ? 10 : 12,
+                        ),
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: isSmallLandscape ? 1 : 2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Receipt body
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    isSlimPhone || isSmallLandscape ? 12 : 20,
+                    isSmallLandscape ? 12 : 16,
+                    isSlimPhone || isSmallLandscape ? 12 : 20,
+                    0
+                  ),
+                  child: Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(isSlimPhone || isSmallLandscape ? 12 : 16),
+                    decoration: BoxDecoration(
+                      color: _bgColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Store header with logo
+                        Center(
+                          child: Column(
+                            children: [
+                              Container(
+                                width: isSmallLandscape ? 32 : 40,
+                                height: isSmallLandscape ? 32 : 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(isSmallLandscape ? 8 : 10),
+                                ),
+                                padding: EdgeInsets.all(isSmallLandscape ? 4 : 5),
+                                child: Image.asset(
+                                  'assets/images/logo.png',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Icon(Icons.phone_android, color: const Color(0xFF8B1A1A), size: isSmallLandscape ? 16 : 20);
+                                  },
+                                ),
+                              ),
+                              SizedBox(height: isSmallLandscape ? 6 : 8),
+                              Text(
+                                'GM PHONESHOPPE',
+                                style: TextStyle(
+                                  color: _accentColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: isSmallLandscape ? 14 : 16,
+                                  letterSpacing: isSmallLandscape ? 0.8 : 1,
+                                ),
+                              ),
+                              SizedBox(height: isSmallLandscape ? 3 : 4),
+                              Text(
+                                'Transaction #${transaction['transactionId']}',
+                                style: TextStyle(color: _textSecondary, fontSize: isSmallLandscape ? 10 : 12),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                              Text(
+                                DateFormat('MMM dd, yyyy hh:mm a').format(DateTime.parse(transaction['timestamp'])),
+                                style: TextStyle(color: _textSecondary, fontSize: isSmallLandscape ? 10 : 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _dashedDivider(),
+                        // Items summary
+                        ...items.take(isSmallLandscape ? 2 : 3).map((item) {
+                          final isCashOut = item['isCashOut'] == true;
+                          final isCashIn = item['isCashIn'] == true;
+                          final hasDiscount = item['discountAmount'] != null && (item['discountAmount'] as num) > 0;
+
+                          return Padding(
+                            padding: EdgeInsets.symmetric(vertical: isSmallLandscape ? 3 : 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item['name'],
+                                        style: TextStyle(
+                                          color: hasDiscount ? Colors.green : (isCashOut ? const Color(0xFFE67E22) : _textPrimary),
+                                          fontSize: isSmallLandscape ? 11 : 12,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      if (hasDiscount) ...[
+                                        Text(
+                                          'Before: ${currencyFormat.format(item['originalPrice'])} → After: ${currencyFormat.format(item['discountedPrice'])}',
+                                          style: TextStyle(
+                                            color: Colors.green.withValues(alpha: 0.7),
+                                            fontSize: isSmallLandscape ? 9 : 10,
+                                            fontStyle: FontStyle.italic,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Saved: ${currencyFormat.format(item['discountAmount'])}',
+                                          style: TextStyle(
+                                            color: Colors.green.withValues(alpha: 0.9),
+                                            fontSize: isSmallLandscape ? 8 : 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                      if (isCashOut || isCashIn) ...[
+                                        Text(
+                                          isCashOut
+                                              ? 'Cash Given: ${currencyFormat.format(item['actualCashGiven'] ?? item['cashOutAmount'])}'
+                                              : 'Cash Received: ${currencyFormat.format(item['actualCashGiven'] ?? item['cashOutAmount'])}',
+                                          style: TextStyle(
+                                            color: isCashOut ? Colors.red : Colors.green,
+                                            fontSize: isSmallLandscape ? 9 : 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        if (item['feeHandling'] == 'fee_included')
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])} (included)',
+                                            style: TextStyle(
+                                              color: _textSecondary,
+                                              fontSize: isSmallLandscape ? 8 : 9,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          )
+                                        else if (item['feeHandling'] == 'fee_separate')
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])} (to cashier)',
+                                            style: TextStyle(
+                                              color: Colors.orange,
+                                              fontSize: isSmallLandscape ? 8 : 9,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          )
+                                        else if (item['feeHandling'] == 'auto_deduct')
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])} (deducted)',
+                                            style: TextStyle(
+                                              color: Colors.orange,
+                                              fontSize: isSmallLandscape ? 8 : 9,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            'Service Fee: ${currencyFormat.format(item['serviceFee'])}',
+                                            style: TextStyle(
+                                              color: _textSecondary,
+                                              fontSize: isSmallLandscape ? 9 : 10,
+                                            ),
+                                          ),
+                                      ] else if (!hasDiscount)
+                                        Text(
+                                          '${item['quantity']} x ${currencyFormat.format(item['unitPrice'])}',
+                                          style: TextStyle(
+                                            color: _textSecondary,
+                                            fontSize: isSmallLandscape ? 9 : 10,
+                                          ),
+                                        ),
+                                      if (hasDiscount && !isCashOut && !isCashIn)
+                                        Text(
+                                          '${item['quantity']} x ${currencyFormat.format(item['unitPrice'])}',
+                                          style: TextStyle(
+                                            color: Colors.green.withValues(alpha: 0.8),
+                                            fontSize: isSmallLandscape ? 9 : 10,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  currencyFormat.format(item['subtotal']),
+                                  style: TextStyle(
+                                    color: _textPrimary,
+                                    fontSize: isSmallLandscape ? 11 : 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        if (items.length > (isSmallLandscape ? 2 : 3))
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: isSmallLandscape ? 3 : 4),
+                            child: Text(
+                              '... and ${items.length - (isSmallLandscape ? 2 : 3)} more items',
+                              style: TextStyle(color: _textSecondary, fontSize: isSmallLandscape ? 10 : 11, fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                        _dashedDivider(),
+                        // Total
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: _accentColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'TOTAL',
+                                style: TextStyle(color: _accentColor, fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                currencyFormat.format(transaction['total']),
+                                style: const TextStyle(color: _accentColor, fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _receiptRow('Payment', transaction['paymentMethod'].toString().toUpperCase()),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Action buttons
+              Padding(
+                padding: EdgeInsets.all(isSlimPhone ? 12 : 20),
+                child: isLandscape
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context, 'skip'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: _textSecondary,
+                                side: BorderSide(color: _textSecondary.withValues(alpha: 0.3)),
+                                padding: EdgeInsets.symmetric(vertical: isSmallLandscape ? 10 : 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text(
+                                isSmallLandscape ? 'Skip' : 'Skip Print',
+                                style: TextStyle(fontSize: isSmallLandscape ? 12 : 14),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: isSmallLandscape ? 6 : 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: isSmallLandscape ? 10 : 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                              onPressed: () => Navigator.pop(context, 'retry'),
+                              icon: Icon(Icons.refresh, size: isSmallLandscape ? 16 : 18),
+                              label: Text(
+                                'Retry',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: isSmallLandscape ? 12 : 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: isSmallLandscape ? 6 : 12),
+                          Expanded(
+                            flex: isSmallLandscape ? 2 : 2,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: isSmallLandscape ? 10 : 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                              onPressed: () => Navigator.pop(context, 'yes'),
+                              icon: Icon(Icons.check_circle, size: isSmallLandscape ? 18 : 20),
+                              label: Text(
+                                isSmallLandscape ? 'Printed' : 'Yes, Printed',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: isSmallLandscape ? 13 : 15,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(vertical: isSlimPhone ? 12 : 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: () => Navigator.pop(context, 'yes'),
+                                  icon: const Icon(Icons.check_circle, size: 18),
+                                  label: Text(
+                                    'Yes, Printed',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isSlimPhone ? 13 : 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.pop(context, 'skip'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: _textSecondary,
+                                    side: BorderSide(color: _textSecondary.withValues(alpha: 0.3)),
+                                    padding: EdgeInsets.symmetric(vertical: isSlimPhone ? 10 : 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  child: Text(
+                                    'Skip Print',
+                                    style: TextStyle(fontSize: isSlimPhone ? 12 : 13),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange,
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(vertical: isSlimPhone ? 10 : 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    elevation: 0,
+                                  ),
+                                  onPressed: () => Navigator.pop(context, 'retry'),
+                                  icon: const Icon(Icons.refresh, size: 16),
+                                  label: Text(
+                                    'Retry',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isSlimPhone ? 12 : 13,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+      },
     );
   }
 
@@ -3003,6 +3850,17 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
             icon: const Icon(Icons.point_of_sale, color: Colors.white, size: 20),
             onPressed: _openCashDrawerForChange,
             tooltip: 'Open Drawer for Change',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          ),
+          IconButton(
+            icon: Icon(
+              _discountModeEnabled ? Icons.discount : Icons.discount_outlined,
+              color: _discountModeEnabled ? Colors.green : Colors.white,
+              size: 20,
+            ),
+            onPressed: _toggleDiscountMode,
+            tooltip: 'Discount Mode',
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
@@ -4095,16 +4953,23 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                                         final item = _cartItems[index];
                                         final name = item['name'] as String? ?? '';
                                         final qty = item['cartQuantity'] as int? ?? 1;
-                                        final unitPrice = (item['sellingPrice'] as num?)?.toDouble() ?? 0;
-                                        final lineTotal = unitPrice * qty;
+                                        final originalPrice = (item['sellingPrice'] as num?)?.toDouble() ?? 0;
+                                        final currentPrice = (item['_discountedPrice'] as double?) ?? originalPrice;
+                                        final lineTotal = currentPrice * qty;
+                                        final hasDiscount = item['_discountedPrice'] != null;
+
                                         return Container(
                                           margin: const EdgeInsets.only(bottom: 6),
                                           padding: const EdgeInsets.all(8),
                                           decoration: BoxDecoration(
                                             color: _bgColor,
                                             borderRadius: BorderRadius.circular(6),
+                                            border: hasDiscount ? Border.all(color: Colors.green.withValues(alpha: 0.3), width: 1) : null,
                                           ),
-                                          child: Row(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
                                             children: [
                                               // Quantity controls
                                               Row(
@@ -4154,7 +5019,11 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
                                                     Text(name, style: const TextStyle(color: _textPrimary, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                                    Text('@${currencyFormat.format(unitPrice)}', style: TextStyle(color: _textSecondary, fontSize: 10)),
+                                                    if (hasDiscount) ...[
+                                                      Text('@${currencyFormat.format(originalPrice)}', style: TextStyle(color: _textSecondary, fontSize: 10, decoration: TextDecoration.lineThrough)),
+                                                      Text('@${currencyFormat.format(currentPrice)}', style: const TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                                                    ] else
+                                                      Text('@${currencyFormat.format(currentPrice)}', style: TextStyle(color: _textSecondary, fontSize: 10)),
                                                   ],
                                                 ),
                                               ),
@@ -4175,6 +5044,71 @@ class _POSPageState extends State<POSPage> with SingleTickerProviderStateMixin {
                                               ),
                                             ],
                                           ),
+                                          // Discount adjustment UI (only shown when discount mode is enabled)
+                                          if (_discountModeEnabled)
+                                            Padding(
+                                              padding: const EdgeInsets.only(top: 8),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green.withValues(alpha: 0.1),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    const Icon(Icons.edit, color: Colors.green, size: 14),
+                                                    const SizedBox(width: 6),
+                                                    const Text(
+                                                      'Adjust Price:',
+                                                      style: TextStyle(color: Colors.green, fontSize: 11, fontWeight: FontWeight.bold),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: SizedBox(
+                                                        height: 32,
+                                                        child: TextField(
+                                                          key: ValueKey('discount_$index'),
+                                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                          style: const TextStyle(color: _textPrimary, fontSize: 12),
+                                                          decoration: InputDecoration(
+                                                            prefixText: '₱ ',
+                                                            hintText: currencyFormat.format(originalPrice),
+                                                            hintStyle: TextStyle(color: _textSecondary.withValues(alpha: 0.5)),
+                                                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                            border: OutlineInputBorder(
+                                                              borderRadius: BorderRadius.circular(4),
+                                                              borderSide: const BorderSide(color: Colors.green),
+                                                            ),
+                                                            enabledBorder: OutlineInputBorder(
+                                                              borderRadius: BorderRadius.circular(4),
+                                                              borderSide: BorderSide(color: Colors.green.withValues(alpha: 0.5)),
+                                                            ),
+                                                            focusedBorder: OutlineInputBorder(
+                                                              borderRadius: BorderRadius.circular(4),
+                                                              borderSide: const BorderSide(color: Colors.green, width: 2),
+                                                            ),
+                                                            filled: true,
+                                                            fillColor: _bgColor,
+                                                          ),
+                                                          onChanged: (value) => _updateDiscountedPrice(index, value, originalPrice),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    IconButton(
+                                                      icon: const Icon(Icons.refresh, color: _textSecondary, size: 16),
+                                                      tooltip: 'Reset to original price',
+                                                      padding: EdgeInsets.zero,
+                                                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                                      onPressed: () => _resetItemPrice(index),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                         );
                           },
                         ),

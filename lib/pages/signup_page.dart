@@ -4,6 +4,7 @@ import 'main_admin_page.dart';
 import 'main_user_page.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_database_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -125,7 +126,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    maxLines: 1,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -141,7 +144,9 @@ class _SignUpPageState extends State<SignUpPage> {
                       color: Colors.white,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    maxLines: 1,
                   ),
                 ],
               ),
@@ -176,12 +181,7 @@ class _SignUpPageState extends State<SignUpPage> {
     // If we have a verified invitation, check that email matches
     if (_verifiedInvitation == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please verify your invitation code first'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        SnackBarUtils.showWarning(context, 'Please verify your invitation code first');
       }
       return;
     }
@@ -199,12 +199,7 @@ class _SignUpPageState extends State<SignUpPage> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sign up cancelled or failed'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackBarUtils.showError(context, 'Sign up cancelled or failed');
       }
       return;
     }
@@ -237,12 +232,7 @@ class _SignUpPageState extends State<SignUpPage> {
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to complete signup. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackBarUtils.showError(context, 'Failed to complete signup. Please try again.');
       }
       return;
     }
@@ -304,7 +294,7 @@ class _SignUpPageState extends State<SignUpPage> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: EdgeInsets.all(MediaQuery.of(context).size.width < 360 ? 16.0 : 24.0),
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 500),
                 child: Column(
@@ -349,7 +339,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 36,
+                            fontSize: MediaQuery.of(context).size.width < 360 ? 28 : 36,
                           ),
                     ),
                     const SizedBox(height: 12),
@@ -519,7 +509,9 @@ class _SignUpPageState extends State<SignUpPage> {
                                         style: TextStyle(
                                           color: Colors.white.withValues(alpha: 0.9),
                                           fontSize: 14,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
+                                        maxLines: 1,
                                       ),
                                     ],
                                   ),
@@ -583,8 +575,10 @@ class _SignUpPageState extends State<SignUpPage> {
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 13,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         textAlign: TextAlign.center,
+                        maxLines: 2,
                       ),
                     ],
                     const SizedBox(height: 32),

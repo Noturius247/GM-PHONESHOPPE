@@ -8,9 +8,15 @@ class AuthService {
   // Firebase Auth instance
   static final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
+  // Google OAuth Client ID - pass via --dart-define=GOOGLE_CLIENT_ID=... at build time
+  static const String _googleClientId = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID',
+    defaultValue: '71583971266-ie3gpkatrmbacon13gfqon0oh24fljgj.apps.googleusercontent.com',
+  );
+
   // Google Sign In instance
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: '71583971266-ie3gpkatrmbacon13gfqon0oh24fljgj.apps.googleusercontent.com',
+    clientId: _googleClientId,
     scopes: [
       'email',
       'profile',

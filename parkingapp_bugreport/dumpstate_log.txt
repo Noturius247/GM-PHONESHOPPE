@@ -1,0 +1,372 @@
+Module metadata package name: com.google.android.modulemetadata
+Launching async 'SERIALIZE PERFETTO TRACE'Duration of 'DUMPSYS CRITICAL': 1.65s
+Duration of 'SYSTEM LOG': 4.25s
+Duration of 'EVENT LOG': 1.70s
+Duration of 'STATS LOG': 0.02s
+Duration of 'RADIO LOG': 2.64s
+logcat: Logcat read failure: No such file or directory
+*** command 'logcat -L -b all -v threadtime -v printable -v uid -d *:v' failed: exit code 1
+Start thread pool:1
+Adding dir /cache/recovery (recursive: 1)
+Adding dir /data/misc/recovery (recursive: 1)
+Adding dir /data/misc/update_engine_log (recursive: 1)
+Adding dir /data/misc/update_engine/prefs (recursive: 1)
+Adding dir /data/misc/logd (recursive: 0)
+/data/misc/logd: No such file or directory
+Adding dir /data/misc/prereboot (recursive: 0)
+MOUNT INFO: 112 entries added to zip file
+Duration of 'LPDUMP': 1.04s
+Duration of 'DEVICE-MAPPER': 1.04s
+Adding dir /metadata/ota (recursive: 1)
+execvp on command 'iotop -n 1 -m 100' failed (error: No such file or directory)
+*** command 'iotop -n 1 -m 100' failed: exit code 1
+Duration of 'Dmabuf dump': 1.23s
+Adding dir /data/misc/apexdata/com.android.uwb/log (recursive: 1)
+/data/misc/apexdata/com.android.uwb/log: No such file or directory
+Duration of 'DUMP TRACES': 35.56s
+Duration of 'Wait for ': 31.26s
+shutdown thread pool
+Start thread pool:3
+section 1000 status 1
+Warning: Skipping "android.hidl.base@1.0::IBase/default": cannot be fetched from service manager (null)
+Warning: Skipping "android.hidl.token@1.0::ITokenManager/default": cannot be fetched from service manager (null)
+section 1000 status 2
+section 1002 status 1
+section 1002 status 2
+section 1109 status 1
+section 1109 status 2
+section 1110 status 1
+section 1110 status 2
+section 1111 status 1
+section 1111 status 2
+section 1112 status 1
+section 1112 status 2
+section 1113 status 1
+section 1113 status 2
+section 1114 status 1
+section 1114 status 2
+section 1115 status 1
+section 1115 status 2
+section 1116 status 1
+*** command 'lshal --all --types=all' failed: exit code 136
+android.hidl.base@1.0::IBase/default does not exist, or no permission to connect.
+*** command 'lshal debug -E android.hidl.base@1.0::IBase/default' failed: exit code 128
+No IDumpstateDevice AIDL implementation
+No IDumpstateDevice HIDL implementation
+Could not find IDumpstateDevice implementation
+Failed to unlink file (/data/user_de/0/com.android.shell/files/bugreports/dumpstate_board.bin): No such file or directory
+Failed to unlink file (/data/user_de/0/com.android.shell/files/bugreports/dumpstate_board.txt): No such file or directory
+debug() FAILED on android.hidl.manager@1.2::IServiceManager/default: Status(EX_TRANSACTION_FAILED): 'FAILED_TRANSACTION: '
+android.hidl.token@1.0::ITokenManager/default does not exist, or no permission to connect.
+*** command 'lshal debug -E android.hidl.token@1.0::ITokenManager/default' failed: exit code 128
+Duration of 'CHECKIN BATTERYSTATS': 1.12s
+Duration of 'DUMP CHECKINS': 1.80s
+Duration of 'CPU INFO': 2.14s
+section 1116 status 2
+section 2001 status 1
+section 2001 status 2
+section 2002 status 1
+section 2002 status 2
+section 2003 status 1
+Duration of 'VISIBLE WINDOW VIEWS': 1.74s
+Duration of 'PROCESSES AND THREADS': 0.97s
+Adding dir /system/etc/vintf/ (recursive: 1)
+Adding dir /vendor/etc/vintf/ (recursive: 1)
+Adding dir /odm/etc/vintf/ (recursive: 1)
+Adding dir /system_ext/etc/vintf/ (recursive: 1)
+section 2003 status 2
+section 2004 status 1
+section 2004 status 2
+section 2005 status 1
+Adding dir /data/misc/nfc/logs (recursive: 1)
+AddAnrTraceDir(): dump_traces_file=/data/user_de/0/com.android.shell/files/bugreports/dumptrace_urV4JE, anr_traces_dir=/data/anr
+Dumping current ANR traces (/data/user_de/0/com.android.shell/files/bugreports/dumptrace_urV4JE) to the main bugreport entry
+section 2005 status 2
+section 2006 status 1
+section 2006 status 2
+section 2007 status 1
+section 2007 status 2
+section 3000 status 1
+section 3000 status 2
+section 3002 status 1
+section 3002 status 2
+section 3004 status 1
+section 3004 status 2
+section 3005 status 1
+section 3005 status 2
+section 3006 status 1
+section 3006 status 2
+section 3007 status 1
+section 3007 status 2
+section 3008 status 1
+section 3008 status 2
+section 3009 status 1
+section 3009 status 2
+section 3010 status 1
+section 3010 status 2
+section 3011 status 1
+section 3011 status 2
+section 3012 status 1
+section 3012 status 2
+section 3013 status 1
+section 3013 status 2
+section 3014 status 1
+section 3014 status 2
+section 3015 status 1
+section 3015 status 2
+section 3016 status 1
+section 3016 status 2
+section 3017 status 1
+section 3017 status 2
+section 3019 status 1
+section 3019 status 2
+section 3020 status 1
+section 3020 status 2
+section 3021 status 1
+section 3021 status 2
+section 3027 status 1
+section 3027 status 2
+section 3028 status 1
+section 3028 status 2
+section 3029 status 1
+section 3029 status 2
+section 3030 status 1
+section 3030 status 2
+section 3031 status 1
+section 3031 status 2
+section 3032 status 1
+section 3032 status 2
+section 3033 status 1
+section 3033 status 2
+section 3034 status 1
+section 3034 status 2
+section 3035 status 1
+section 3035 status 2
+section 3036 status 1
+section 3036 status 2
+section 3037 status 1
+section 3037 status 2
+section 3038 status 1
+section 3038 status 2
+section 3039 status 1
+section 3039 status 2
+section 3040 status 1
+section 3040 status 2
+section 3041 status 1
+section 3041 status 2
+section 3042 status 1
+section 3042 status 2
+section 3043 status 1
+section 3043 status 2
+section 3044 status 1
+section 3044 status 2
+section 3045 status 1
+section 3045 status 2
+section 3046 status 1
+section 3046 status 2
+section 3047 status 1
+section 3047 status 2
+section 3049 status 1
+section 3049 status 2
+section 3050 status 1
+section 3050 status 2
+section 3051 status 1
+section 3051 status 2
+section 3052 status 1
+section 3052 status 2
+section 3053 status 1
+section 3053 status 2
+section 3054 status 1
+section 3054 status 2
+section 3055 status 1
+section 3055 status 2
+section 3056 status 1
+section 3056 status 2
+done
+Duration of 'INCIDENT REPORT': 10.12s
+Duration of 'DUMPSYS HIGH': 27.91s
+Duration of 'SERVICE HIGH connectivity': 4.95s
+drop_root_user(): already running as Shell
+warning: failed to read //apex/apex-info-list.xml/etc/aconfig_flags.pb
+warning: failed to read //apex/.default-apex-info-list.xml/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.scheduling/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.resolv/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.extservices/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.compos/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.neuralnetworks/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.apex.cts.shim/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.sdkext/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.tzdata/etc/aconfig_flags.pb
+warning: failed to read //apex/com.google.android.widevine/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.runtime/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.devicelock/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.i18n/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.hardware.cas/etc/aconfig_flags.pb
+warning: failed to read //apex/com.android.nfcservices/etc/aconfig_flags.pb
+Adding dir /data/misc/snapshotctl_log (recursive: 0)
+Error with service 'AtlasService' while dumping: FAILED_TRANSACTION
+Error with service 'MMListService' while dumping: FAILED_TRANSACTION
+Error with service 'TheiaBinderService' while dumping: FAILED_TRANSACTION
+Can't find service: android.hardware.boot.IBootControl/default
+Failed to start dump thread for service: android.hardware.boot.IBootControl/default, status: -2Can't find service: android.hardware.cas.IMediaCasService/default
+Failed to start dump thread for service: android.hardware.cas.IMediaCasService/default, status: -2Can't find service: android.hardware.gatekeeper.IGatekeeper/default
+Failed to start dump thread for service: android.hardware.gatekeeper.IGatekeeper/default, status: -2Can't find service: android.hardware.ir.IConsumerIr/default
+Failed to start dump thread for service: android.hardware.ir.IConsumerIr/default, status: -2Can't find service: android.hardware.radio.config.IRadioConfig/default
+Failed to start dump thread for service: android.hardware.radio.config.IRadioConfig/default, status: -2Can't find service: android.hardware.radio.data.IRadioData/slot1
+Failed to start dump thread for service: android.hardware.radio.data.IRadioData/slot1, status: -2Can't find service: android.hardware.radio.data.IRadioData/slot2
+Failed to start dump thread for service: android.hardware.radio.data.IRadioData/slot2, status: -2Can't find service: android.hardware.radio.ims.IRadioIms/slot1
+Failed to start dump thread for service: android.hardware.radio.ims.IRadioIms/slot1, status: -2Can't find service: android.hardware.radio.ims.IRadioIms/slot2
+Failed to start dump thread for service: android.hardware.radio.ims.IRadioIms/slot2, status: -2Can't find service: android.hardware.radio.messaging.IRadioMessaging/slot1
+Failed to start dump thread for service: android.hardware.radio.messaging.IRadioMessaging/slot1, status: -2Can't find service: android.hardware.radio.messaging.IRadioMessaging/slot2
+Failed to start dump thread for service: android.hardware.radio.messaging.IRadioMessaging/slot2, status: -2Can't find service: android.hardware.radio.modem.IRadioModem/imsSlot1
+Failed to start dump thread for service: android.hardware.radio.modem.IRadioModem/imsSlot1, status: -2Can't find service: android.hardware.radio.modem.IRadioModem/imsSlot2
+Failed to start dump thread for service: android.hardware.radio.modem.IRadioModem/imsSlot2, status: -2Can't find service: android.hardware.radio.modem.IRadioModem/se1
+Failed to start dump thread for service: android.hardware.radio.modem.IRadioModem/se1, status: -2Can't find service: android.hardware.radio.modem.IRadioModem/se2
+Failed to start dump thread for service: android.hardware.radio.modem.IRadioModem/se2, status: -2Can't find service: android.hardware.radio.modem.IRadioModem/slot1
+Failed to start dump thread for service: android.hardware.radio.modem.IRadioModem/slot1, status: -2Can't find service: android.hardware.radio.modem.IRadioModem/slot2
+Failed to start dump thread for service: android.hardware.radio.modem.IRadioModem/slot2, status: -2Can't find service: android.hardware.radio.network.IRadioNetwork/imsSlot1
+Failed to start dump thread for service: android.hardware.radio.network.IRadioNetwork/imsSlot1, status: -2Can't find service: android.hardware.radio.network.IRadioNetwork/imsSlot2
+Failed to start dump thread for service: android.hardware.radio.network.IRadioNetwork/imsSlot2, status: -2Can't find service: android.hardware.radio.network.IRadioNetwork/slot1
+Failed to start dump thread for service: android.hardware.radio.network.IRadioNetwork/slot1, status: -2Can't find service: android.hardware.radio.network.IRadioNetwork/slot2
+Failed to start dump thread for service: android.hardware.radio.network.IRadioNetwork/slot2, status: -2Can't find service: android.hardware.radio.sap.ISap/slot1
+Failed to start dump thread for service: android.hardware.radio.sap.ISap/slot1, status: -2Can't find service: android.hardware.radio.sap.ISap/slot2
+Failed to start dump thread for service: android.hardware.radio.sap.ISap/slot2, status: -2Can't find service: android.hardware.radio.sim.IRadioSim/imsSlot1
+Failed to start dump thread for service: android.hardware.radio.sim.IRadioSim/imsSlot1, status: -2Can't find service: android.hardware.radio.sim.IRadioSim/imsSlot2
+Failed to start dump thread for service: android.hardware.radio.sim.IRadioSim/imsSlot2, status: -2Can't find service: android.hardware.radio.sim.IRadioSim/se1
+Failed to start dump thread for service: android.hardware.radio.sim.IRadioSim/se1, status: -2Can't find service: android.hardware.radio.sim.IRadioSim/se2
+Failed to start dump thread for service: android.hardware.radio.sim.IRadioSim/se2, status: -2Can't find service: android.hardware.radio.sim.IRadioSim/slot1
+Failed to start dump thread for service: android.hardware.radio.sim.IRadioSim/slot1, status: -2Can't find service: android.hardware.radio.sim.IRadioSim/slot2
+Failed to start dump thread for service: android.hardware.radio.sim.IRadioSim/slot2, status: -2Can't find service: android.hardware.radio.voice.IRadioVoice/imsSlot1
+Failed to start dump thread for service: android.hardware.radio.voice.IRadioVoice/imsSlot1, status: -2Can't find service: android.hardware.radio.voice.IRadioVoice/imsSlot2
+Failed to start dump thread for service: android.hardware.radio.voice.IRadioVoice/imsSlot2, status: -2Can't find service: android.hardware.radio.voice.IRadioVoice/slot1
+Failed to start dump thread for service: android.hardware.radio.voice.IRadioVoice/slot1, status: -2Can't find service: android.hardware.radio.voice.IRadioVoice/slot2
+Failed to start dump thread for service: android.hardware.radio.voice.IRadioVoice/slot2, status: -2Can't find service: android.hardware.secure_element.ISecureElement/SIM1
+Failed to start dump thread for service: android.hardware.secure_element.ISecureElement/SIM1, status: -2Can't find service: android.hardware.secure_element.ISecureElement/SIM2
+Failed to start dump thread for service: android.hardware.secure_element.ISecureElement/SIM2, status: -2Can't find service: android.hardware.secure_element.ISecureElement/eSE1
+Failed to start dump thread for service: android.hardware.secure_element.ISecureElement/eSE1, status: -2Can't find service: android.hardware.usb.IUsb/default
+Failed to start dump thread for service: android.hardware.usb.IUsb/default, status: -2Can't find service: android.hardware.usb.gadget.IUsbGadget/default
+Failed to start dump thread for service: android.hardware.usb.gadget.IUsbGadget/default, status: -2Can't find service: android.hardware.wifi.supplicant.ISupplicant/default
+Failed to start dump thread for service: android.hardware.wifi.supplicant.ISupplicant/default, status: -2Error with service 'android.os.UpdateEngineService' while dumping PID: FAILED_TRANSACTION
+Error with service 'android.os.UpdateEngineService' while dumping thread info: FAILED_TRANSACTION
+Error with service 'android.os.UpdateEngineService' while dumping clients info: FAILED_TRANSACTION
+Error with service 'android.os.UpdateEngineService' while dumping: FAILED_TRANSACTION
+Error with service 'android.os.UpdateEngineStableService' while dumping PID: FAILED_TRANSACTION
+Error with service 'android.os.UpdateEngineStableService' while dumping thread info: FAILED_TRANSACTION
+Error with service 'android.os.UpdateEngineStableService' while dumping clients info: FAILED_TRANSACTION
+Error with service 'android.os.UpdateEngineStableService' while dumping: FAILED_TRANSACTION
+Can't find service: android.service.gatekeeper.IGateKeeperService
+Failed to start dump thread for service: android.service.gatekeeper.IGateKeeperService, status: -2Error with service 'atomacq' while dumping: FAILED_TRANSACTION
+Error with service 'critical.log' while dumping: FAILED_TRANSACTION
+Error with service 'cross_device_service' while dumping: UNKNOWN_TRANSACTION
+Error with service 'horae' while dumping: FAILED_TRANSACTION
+Error with service 'oplus.hans.IHansComunication' while dumping: FAILED_TRANSACTION
+Error with service 'opluscvt' while dumping: FAILED_TRANSACTION
+Error with service 'ostats_pullerd' while dumping: FAILED_TRANSACTION
+Error with service 'ostats_tpd' while dumping: FAILED_TRANSACTION
+Error with service 'ostatsd' while dumping: PERMISSION_DENIED
+Can't find service: vendor.mediatek.framework.mtksf_ext.IMtkSF_ext/default
+Failed to start dump thread for service: vendor.mediatek.framework.mtksf_ext.IMtkSF_ext/default, status: -2Can't find service: vendor.mediatek.hardware.audio.IMtkAudio/default
+Failed to start dump thread for service: vendor.mediatek.hardware.audio.IMtkAudio/default, status: -2Can't find service: vendor.mediatek.hardware.camera.atms.IATMs/default
+Failed to start dump thread for service: vendor.mediatek.hardware.camera.atms.IATMs/default, status: -2Can't find service: vendor.mediatek.hardware.camera.bgservice.IBGService/default
+Failed to start dump thread for service: vendor.mediatek.hardware.camera.bgservice.IBGService/default, status: -2Can't find service: vendor.mediatek.hardware.camera.isphal.IISPModule/internal/1
+Failed to start dump thread for service: vendor.mediatek.hardware.camera.isphal.IISPModule/internal/1, status: -2Can't find service: vendor.mediatek.hardware.composer_ext.IComposerExt/default
+Failed to start dump thread for service: vendor.mediatek.hardware.composer_ext.IComposerExt/default, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/AgpsDebugInterface
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/AgpsDebugInterface, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/AgpsInterface
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/AgpsInterface, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_agps2framework
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_agps2framework, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_agps2gnssAidl
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_agps2gnssAidl, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_agpsd2debugService
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_agpsd2debugService, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_debugService2agpsd
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_debugService2agpsd, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_debugService2mnld
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_debugService2mnld, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_framework2agps
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_framework2agps, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_gnssAidl2agps
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_gnssAidl2agps, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_jam2mnl
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_jam2mnl, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lbs_log_v2s
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lbs_log_v2s, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_agps
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_agps, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_bt
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_bt, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_ipaddr
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_ipaddr, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_lbs
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_lbs, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_network
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_network, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_sensor
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_sensor, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_wlan
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_lppe_socket_wlan, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_meta2mnld
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_meta2mnld, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnl2jam
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnl2jam, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnld2debugService
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnld2debugService, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnld2mtklogger
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnld2mtklogger, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnld2nlputils
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_mnld2nlputils, status: -2Can't find service: vendor.mediatek.hardware.lbs.ILbs/mtk_mtklogger2mnld
+Failed to start dump thread for service: vendor.mediatek.hardware.lbs.ILbs/mtk_mtklogger2mnld, status: -2Can't find service: vendor.mediatek.hardware.mtkpower.IMtkPowerService/default
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkpower.IMtkPowerService/default, status: -2Can't find service: vendor.mediatek.hardware.mtkpower_applist.IMtkpower_applist/default
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkpower_applist.IMtkpower_applist/default, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.data.IMtkRadioExData/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.data.IMtkRadioExData/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.data.IMtkRadioExData/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.data.IMtkRadioExData/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.dch.IMtkRadioExDc/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.dch.IMtkRadioExDc/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.dch.IMtkRadioExDc/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.dch.IMtkRadioExDc/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.ims.IMtkRadioExIms/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.ims.IMtkRadioExIms/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.ims.IMtkRadioExIms/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.ims.IMtkRadioExIms/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.messaging.IMtkRadioExMessaging/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.messaging.IMtkRadioExMessaging/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.messaging.IMtkRadioExMessaging/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.messaging.IMtkRadioExMessaging/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.modem.IMtkRadioExModem/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.modem.IMtkRadioExModem/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.modem.IMtkRadioExModem/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.modem.IMtkRadioExModem/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.network.IMtkRadioExNetwork/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.network.IMtkRadioExNetwork/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.network.IMtkRadioExNetwork/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.network.IMtkRadioExNetwork/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.rcs.IMtkRadioExRcs/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.rcs.IMtkRadioExRcs/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.rcs.IMtkRadioExRcs/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.rcs.IMtkRadioExRcs/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.sim.IMtkRadioExSim/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.sim.IMtkRadioExSim/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.sim.IMtkRadioExSim/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.sim.IMtkRadioExSim/slot2, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.voice.IMtkRadioExVoice/slot1
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.voice.IMtkRadioExVoice/slot1, status: -2Can't find service: vendor.mediatek.hardware.mtkradioex.voice.IMtkRadioExVoice/slot2
+Failed to start dump thread for service: vendor.mediatek.hardware.mtkradioex.voice.IMtkRadioExVoice/slot2, status: -2Can't find service: vendor.mediatek.hardware.netdagent.INetdagents/default
+Failed to start dump thread for service: vendor.mediatek.hardware.netdagent.INetdagents/default, status: -2Can't find service: vendor.mediatek.hardware.nvram.INvram/default
+Failed to start dump thread for service: vendor.mediatek.hardware.nvram.INvram/default, status: -2Can't find service: vendor.mediatek.hardware.nwk_opt_new.INwkOptNew/default
+Failed to start dump thread for service: vendor.mediatek.hardware.nwk_opt_new.INwkOptNew/default, status: -2Error with service 'vendor.mediatek.hardware.pq_aidl.IPictureQuality_AIDL/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.mediatek.hardware.videotelephony.IVideoTelephony/default
+Failed to start dump thread for service: vendor.mediatek.hardware.videotelephony.IVideoTelephony/default, status: -2Can't find service: vendor.oplus.hardware.appradioaidl.IAppRadioStable/OplusAppRadio0
+Failed to start dump thread for service: vendor.oplus.hardware.appradioaidl.IAppRadioStable/OplusAppRadio0, status: -2Can't find service: vendor.oplus.hardware.appradioaidl.IAppRadioStable/OplusAppRadio1
+Failed to start dump thread for service: vendor.oplus.hardware.appradioaidl.IAppRadioStable/OplusAppRadio1, status: -2Error with service 'vendor.oplus.hardware.biometrics.fingerprintpay.IFingerprintPay/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.cammidasservice.IMIDASService/default
+Failed to start dump thread for service: vendor.oplus.hardware.cammidasservice.IMIDASService/default, status: -2Error with service 'vendor.oplus.hardware.charger.ICharger/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.communicationcenter.IDmtpService/default
+Failed to start dump thread for service: vendor.oplus.hardware.communicationcenter.IDmtpService/default, status: -2Can't find service: vendor.oplus.hardware.displaypanelfeature.IDisplayPanelFeature/default
+Failed to start dump thread for service: vendor.oplus.hardware.displaypanelfeature.IDisplayPanelFeature/default, status: -2Can't find service: vendor.oplus.hardware.engineer.IEngineer/default
+Failed to start dump thread for service: vendor.oplus.hardware.engineer.IEngineer/default, status: -2Error with service 'vendor.oplus.hardware.fido.fido2ca.IFidoDaemon/default' while dumping: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.fido.fidoca.IFidoDaemon/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.gameopt.IGameOptHalService/default
+Failed to start dump thread for service: vendor.oplus.hardware.gameopt.IGameOptHalService/default, status: -2Error with service 'vendor.oplus.hardware.misc.IOplusMisc/default' while dumping: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.nfc.IOplusNfc/default' while dumping: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.nfcExtns.INfcExtns/default' while dumping: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.olc2.IOplusLogCore/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.oplusSensor.ISensorFeature/default
+Failed to start dump thread for service: vendor.oplus.hardware.oplusSensor.ISensorFeature/default, status: -2Error with service 'vendor.oplus.hardware.performance.IPerformance/default' while dumping: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.power.powermonitor.IPowerMonitor/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.radio.IRadioStable/OplusRadio0
+Failed to start dump thread for service: vendor.oplus.hardware.radio.IRadioStable/OplusRadio0, status: -2Can't find service: vendor.oplus.hardware.radio.IRadioStable/OplusRadio1
+Failed to start dump thread for service: vendor.oplus.hardware.radio.IRadioStable/OplusRadio1, status: -2Error with service 'vendor.oplus.hardware.riskdetect.IRiskDetect/default' while dumping: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.rpmh.IRpmh/default' while dumping: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.stability.oplus_project.IOplusProject/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.subsys_interface.subsys.ISubsys/default
+Failed to start dump thread for service: vendor.oplus.hardware.subsys_interface.subsys.ISubsys/default, status: -2Can't find service: vendor.oplus.hardware.subsys_interface.subsys_radio.ISubsysRadio/slot1
+Failed to start dump thread for service: vendor.oplus.hardware.subsys_interface.subsys_radio.ISubsysRadio/slot1, status: -2Can't find service: vendor.oplus.hardware.subsys_interface.subsys_radio.ISubsysRadio/slot2
+Failed to start dump thread for service: vendor.oplus.hardware.subsys_interface.subsys_radio.ISubsysRadio/slot2, status: -2Error with service 'vendor.oplus.hardware.touch.IOplusTouch/default' while dumping PID: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.touch.IOplusTouch/default' while dumping thread info: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.touch.IOplusTouch/default' while dumping clients info: FAILED_TRANSACTION
+Error with service 'vendor.oplus.hardware.touch.IOplusTouch/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.transmessage.ITransmessge/default
+Failed to start dump thread for service: vendor.oplus.hardware.transmessage.ITransmessge/default, status: -2Can't find service: vendor.oplus.hardware.urcc.IUrcc/default
+Failed to start dump thread for service: vendor.oplus.hardware.urcc.IUrcc/default, status: -2Error with service 'vendor.oplus.hardware.wifi.IOplusWifiService/default' while dumping: FAILED_TRANSACTION
+Can't find service: vendor.oplus.hardware.wifi.supplicant.IOplusSupplicant/default
+Failed to start dump thread for service: vendor.oplus.hardware.wifi.supplicant.IOplusSupplicant/default, status: -2Can't find service: vendor.trustonic.hardware.soter.ITrustonicSoter/default
+Failed to start dump thread for service: vendor.trustonic.hardware.soter.ITrustonicSoter/default, status: -2Can't find service: vold
+Failed to start dump thread for service: vold, status: -2Duration of 'DUMPSYS': 83.25s
+Adding dir /data/misc/bluetooth/logs (recursive: 1)
+Duration of 'APP SERVICES PLATFORM': 0.54s
+Duration of 'APP SERVICES NON-PLATFORM': 9.28s
+Duration of 'APP PROVIDERS PLATFORM': 1.75s
+*** command '/system/bin/dumpsys -T 60000 activity provider all-non-platform' timed out after 60.006s (killing pid 10460)
+Duration of 'APP PROVIDERS NON-PLATFORM': 60.02s
+Adding dir /linkerconfig (recursive: 1)
+Adding frozen processes from /sys/fs/cgroup
+Duration of 'DUMPSTATE': 197.32s
+Duration of 'SYSTEM LOG': 0.64s
+Adding main entry (bugreport-CPH2531-AP3A.240617.008-2026-02-02-17-49-03.txt) from /data/user_de/0/com.android.shell/files/bugreports/bugreport-CPH2531-AP3A.240617.008-2026-02-02-17-49-03.tmp to .zip bugreport
+dumpstate id 1 finished around 2026/02/02 17:53:09 (246 s)
+Adding zip text entry main_entry.txt
+dumpstate_log.txt entry on zip file logged up to here

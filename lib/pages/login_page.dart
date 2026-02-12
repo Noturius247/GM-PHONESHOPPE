@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'main_admin_page.dart';
 import 'main_user_page.dart';
 import '../services/auth_service.dart';
+import '../utils/snackbar_utils.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -52,12 +53,23 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Your account ($email) is not yet approved to access GM PhoneShoppe.',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.8),
-                fontSize: 14,
-                height: 1.5,
+            RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+                children: [
+                  const TextSpan(text: 'Your account ('),
+                  TextSpan(
+                    text: email,
+                    style: const TextStyle(
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const TextSpan(text: ') is not yet approved to access GM PhoneShoppe.'),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -116,12 +128,7 @@ class _LoginPageState extends State<LoginPage> {
     if (user == null) {
       // Login failed or cancelled
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login cancelled or failed'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        SnackBarUtils.showError(context, 'Login cancelled or failed');
       }
       return;
     }
@@ -178,7 +185,7 @@ class _LoginPageState extends State<LoginPage> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: EdgeInsets.all(MediaQuery.of(context).size.width < 360 ? 16.0 : 24.0),
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 500),
                 child: Column(
@@ -223,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
                       style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 36,
+                            fontSize: MediaQuery.of(context).size.width < 360 ? 28 : 36,
                           ),
                     ),
                     const SizedBox(height: 12),

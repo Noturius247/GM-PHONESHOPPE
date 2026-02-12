@@ -1,0 +1,644 @@
+Process name is /system/bin/installd, uid is 0, not key_process
+keyProcess: 0
+*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+Build fingerprint: 'OPPO/CPH2531/OP5705L1:15/AP3A.240617.008/T.R4T2.2037c53-1:user/release-keys'
+Revision: '0'
+ABI: 'arm64'
+Timestamp: 2025-11-24 22:07:06.192175694+0800
+Process uptime: 0s
+Cmdline: /system/bin/installd
+pid: 1263, tid: 1263, name: Binder:installd  >>> /system/bin/installd <<<
+uid: 0
+tagged_addr_ctrl: 0000000000000001 (PR_TAGGED_ADDR_ENABLE)
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'length_error was thrown in -fno-exceptions mode with message "vector"'
+    x0  0000000000000000  x1  00000000000004ef  x2  0000000000000006  x3  0000007fdfdc9210
+    x4  2c6e6d652c1f6d68  x5  2c6e6d652c1f6d68  x6  2c6e6d652c1f6d68  x7  7f7f7f7f7f7f7f7f
+    x8  00000000000000f0  x9  00000072610ec378  x10 0000000000000001  x11 0000007261171a90
+    x12 000000006924668a  x13 000000007fffffff  x14 00000000001d142e  x15 0000000bded1a0c4
+    x16 00000072611dde68  x17 00000072611c56d0  x18 0000007265758000  x19 00000000000004ef
+    x20 00000000000004ef  x21 00000000ffffffff  x22 ffffff80ffffffc8  x23 0000007fdfdc9340
+    x24 0000000000000010  x25 0000000000000011  x26 0000000000000010  x27 000000000000000c
+    x28 00000071e0b39168  x29 0000007fdfdc9290
+    lr  0000007261159d98  sp  0000007fdfdc91f0  pc  0000007261159dc8  pst 0000000000001000
+
+14 total frames
+backtrace:
+      #00 pc 0000000000093dc8  /apex/com.android.runtime/lib64/bionic/libc.so (abort+168) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #01 pc 00000000000b0314  /system/lib64/libc++.so (std::__1::__libcpp_verbose_abort(char const*, ...)+216) (BuildId: 53e0091d25a788802d2d3a5324f79b527df4913f)
+      #02 pc 00000000000299e4  /system_ext/lib64/libinstalldextimpl.so (std::__1::__throw_length_error[abi:nn180000](char const*)+20) (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+      #03 pc 000000000002c3d0  /system_ext/lib64/libinstalldextimpl.so (std::__1::vector<unsigned int, std::__1::allocator<unsigned int>>::__throw_length_error[abi:nn180000]() const+16) (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+      #04 pc 0000000000041f10  /system_ext/lib64/libinstalldextimpl.so (std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>* std::__1::vector<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::allocator<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>>::__push_back_slow_path<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>&&)+368) (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+      #05 pc 0000000000052854  /system_ext/lib64/libinstalldextimpl.so (android::installd::init_globals_from_data_and_root(char const*, char const*)+3268) (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+      #06 pc 0000000000051a8c  /system_ext/lib64/libinstalldextimpl.so (android::installd::init_globals_from_data_and_root()+76) (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+      #07 pc 0000000000029894  /system_ext/lib64/libinstalldextimpl.so (android::installd::ExtendedFactory::createInstalldExt()+52) (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+      #08 pc 000000000002dfe4  /system/bin/installd (android::installd::InstalldNativeService::getAppSize(std::__1::optional<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>> const&, std::__1::vector<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::allocator<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>> const&, int, int, int, std::__1::vector<long, std::__1::allocator<long>> const&, std::__1::vector<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>, std::__1::allocator<std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>>> const&, std::__1::vector<long, std::__1::allocator<long>>*)+2980) (BuildId: 5c67191b33750f94c024a0aee3d80dc2)
+      #09 pc 00000000000663cc  /system/bin/installd (android::os::BnInstalld::onTransact(unsigned int, android::Parcel const&, android::Parcel*, unsigned int)+13932) (BuildId: 5c67191b33750f94c024a0aee3d80dc2)
+      #10 pc 00000000000547a0  /system/lib64/libbinder.so (android::IPCThreadState::executeCommand(int)+1136) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #11 pc 00000000000561f0  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+448) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #12 pc 0000000000068144  /system/bin/installd (main+1444) (BuildId: 5c67191b33750f94c024a0aee3d80dc2)
+      #13 pc 000000000008d564  /apex/com.android.runtime/lib64/bionic/libc.so (__libc_init+116) (BuildId: 5144907d23fac121cc594696acde97e0)
+
+memory near x3 ([stack]):
+    0000007fdfdc91f0 0000000000000000 0000000000000000  ................
+    0000007fdfdc9200 0000000000000000 0000000000000000  ................
+    0000007fdfdc9210 0000000000000000 00000000ffffffff  ................
+    0000007fdfdc9220 00000000000004ef 0000000000000000  ................
+    0000007fdfdc9230 0000000000000000 0000000000000000  ................
+    0000007fdfdc9240 0000000000000000 0000000000000000  ................
+    0000007fdfdc9250 0000000000000000 0000000000000000  ................
+    0000007fdfdc9260 0000000000000000 0000000000000000  ................
+    0000007fdfdc9270 0000000000000000 0000000000000000  ................
+    0000007fdfdc9280 0000000000000000 0000000000000000  ................
+    0000007fdfdc9290 0000007fdfdc93f0 0000007262d04318  .........C.br...
+    0000007fdfdc92a0 0000007fdfdc9430 ffffffffffffffdf  0...............
+    0000007fdfdc92b0 0000007fdfdc9380 00000071e0ae186c  ........l...q...
+    0000007fdfdc92c0 6d65747379732f18 0000002f7070612f  ./system/app/...
+    0000007fdfdc92d0 74736e692077656e 7263203a65636e61  new instance: cr
+    0000007fdfdc92e0 74736e4965746165 00747845646c6c61  eateInstalldExt.
+
+memory near x9 (/apex/com.android.runtime/lib64/bionic/libc.so):
+    00000072610ec350 000000006f666e69 0000000000000000  info............
+    00000072610ec360 0000000000000001 0000000000000000  ................
+    00000072610ec370 0000000000000000 0000000010000000  ................
+    00000072610ec380 0000000000000000 0000000000000000  ................
+    00000072610ec390 0000000000000000 000c7c4501414d4c  ........LMA.E|..
+    00000072610ec3a0 1631222b25101c19 0000014028130d2e  ...%+"1....(@...
+    00000072610ec3b0 000000d800000010 000000b4000000e4  ................
+    00000072610ec3c0 0000012000000108 00000138000000fc  .... .......8...
+    00000072610ec3d0 0000012c000000cc 000000c0000000a8  ....,...........
+    00000072610ec3e0 000000dc00000114 0000007400000010  ............t...
+    00000072610ec3f0 0000005000000080 000000bc000000a4  ....P...........
+    00000072610ec400 000000d400000098 000000c800000068  ........h.......
+    00000072610ec410 0000005c00000044 000002f8000000b0  D...\...........
+    00000072610ec420 0000029000000010 0000026c0000029c  ............l...
+    00000072610ec430 000002d8000002c0 000002f0000002b4  ................
+    00000072610ec440 000002e400000284 0000027800000260  ........`...x...
+
+memory near x11 (/apex/com.android.runtime/lib64/bionic/libc.so):
+    0000007261171a70 b900000912800008 2a0803e0a8c17bfd  .........{.....*
+    0000007261171a80 00000000d65f03c0 0000000000000000  .._.............
+    0000007261171a90 51010428b4000180 540001293101051f  ....(..Q...1)..T
+    0000007261171aa0 51000429f9400008 9ac921495280002a  ..@.)..Q*..RI!..
+    0000007261171ab0 f9000009aa090109 d65f03c02a1f03e0  ...........*.._.
+    0000007261171ac0 910003fda9bf7bfd 528002c994018d12  .{.............R
+    0000007261171ad0 b900000912800008 2a0803e0a8c17bfd  .........{.....*
+    0000007261171ae0 00000000d65f03c0 0000000000000000  .._.............
+    0000007261171af0 a9027bfdd10103ff 910083fdf9001bf3  .....{..........
+    0000007261171b00 910043e1d53bd053 910023e2f9401668  S.;..C..h.@..#..
+    0000007261171b10 a900fffff81f83a8 2a1f03e0b90013e0  ...............*
+    0000007261171b20 b9400be894018ea4 f94016693100041f  ......@....1i.@.
+    0000007261171b30 5a9f1100f85f83aa 540000a1eb0a013f  .._....Z?......T
+    0000007261171b40 a9427bfdf9401bf3 d65f03c0910103ff  ..@..{B......._.
+    0000007261171b50 0000000094018ce0 0000000000000000  ................
+    0000007261171b60 a9027bfdd10103ff 910083fdf9001bf3  .....{..........
+
+memory near x16 (/apex/com.android.runtime/lib64/bionic/libc.so):
+    00000072611dde40 000000726116f820 000000726116c5a0   ..ar......ar...
+    00000072611dde50 0000007261178940 0000007261159d00  @..ar......ar...
+    00000072611dde60 000000726116e8e0 00000072611c56d0  ...ar....V.ar...
+    00000072611dde70 0000007261153980 000000726116d720  .9.ar... ..ar...
+    00000072611dde80 000000726116d790 0000007261154780  ...ar....G.ar...
+    00000072611dde90 0000007261154340 0000007261159e60  @C.ar...`..ar...
+    00000072611ddea0 000000726116f6b0 0000007261173b50  ...ar...P;.ar...
+    00000072611ddeb0 0000007261175710 000000726116d9b0  .W.ar......ar...
+    00000072611ddec0 000000726116d870 000000726116d8d0  p..ar......ar...
+    00000072611dded0 000000726116d880 0000007261178a30  ...ar...0..ar...
+    00000072611ddee0 00000072611c6350 00000072611c5d50  Pc.ar...P].ar...
+    00000072611ddef0 00000072611c5db0 000000726116d3c0  .].ar......ar...
+    00000072611ddf00 000000726119b570 00000072611736d0  p..ar....6.ar...
+    00000072611ddf10 0000007261161e10 000000726117fab0  ...ar......ar...
+    00000072611ddf20 000000726117ccf0 000000726117d800  ...ar......ar...
+    00000072611ddf30 00000072611c5bd0 00000072611b9d20  .[.ar... ..ar...
+
+memory near x17 (/apex/com.android.runtime/lib64/bionic/libc.so):
+    00000072611c56b0 aa0003e894003e18 b900011392800000  .>..............
+    00000072611c56c0 a8c27bfdf9400bf3 00000000d65f03c0  ..@..{...._.....
+    00000072611c56d0 d4000001d28015c8 da809400b140041f  ..........@.....
+    00000072611c56e0 d65f03c054fffe08 d503201fd503201f  ...T.._.. ... ..
+    00000072611c56f0 d4000001d2801608 da809400b140041f  ..........@.....
+    00000072611c5700 d65f03c054fffd08 d503201fd503201f  ...T.._.. ... ..
+    00000072611c5710 d4000001d28015e8 da809400b140041f  ..........@.....
+    00000072611c5720 d65f03c054fffc08 d503201fd503201f  ...T.._.. ... ..
+    00000072611c5730 d4000001d2801628 da809400b140041f  (.........@.....
+    00000072611c5740 d65f03c054fffb08 d503201fd503201f  ...T.._.. ... ..
+    00000072611c5750 d4000001d2801288 da809400b140041f  ..........@.....
+    00000072611c5760 d65f03c054fffa08 d503201fd503201f  ...T.._.. ... ..
+    00000072611c5770 d4000001d28012c8 da809400b140041f  ..........@.....
+    00000072611c5780 d65f03c054fff908 d503201fd503201f  ...T.._.. ... ..
+    00000072611c5790 d4000001d28013c8 da809400b140041f  ..........@.....
+    00000072611c57a0 d65f03c054fff808 d503201fd503201f  ...T.._.. ... ..
+
+memory near x18:
+    0000007265758000 0000000000000000 0000000000000000  ................
+    0000007265758010 0000000000000000 0000000000000000  ................
+    0000007265758020 0000000000000000 0000000000000000  ................
+    0000007265758030 0000000000000000 0000000000000000  ................
+    0000007265758040 0000000000000000 0000000000000000  ................
+    0000007265758050 0000000000000000 0000000000000000  ................
+    0000007265758060 0000000000000000 0000000000000000  ................
+    0000007265758070 0000000000000000 0000000000000000  ................
+    0000007265758080 0000000000000000 0000000000000000  ................
+    0000007265758090 0000000000000000 0000000000000000  ................
+    00000072657580a0 0000000000000000 0000000000000000  ................
+    00000072657580b0 0000000000000000 0000000000000000  ................
+    00000072657580c0 0000000000000000 0000000000000000  ................
+    00000072657580d0 0000000000000000 0000000000000000  ................
+    00000072657580e0 0000000000000000 0000000000000000  ................
+    00000072657580f0 0000000000000000 0000000000000000  ................
+
+memory near x23 ([stack]):
+    0000007fdfdc9320 0000000000000000 0000000000000000  ................
+    0000007fdfdc9330 8060180680601806 8060180680601806  ..`...`...`...`.
+    0000007fdfdc9340 0000000000000000 00000071e0ae37cc  .........7..q...
+    0000007fdfdc9350 00000071e0c0d000 0000000000000002  ....q...........
+    0000007fdfdc9360 0000000000000080 0000007fdfdc94b9  ................
+    0000007fdfdc9370 2f6d65747379732f 2f6d65747379732f  /system//system/
+    0000007fdfdc9380 0000007fdfdc9430 0000007fdfdc9380  0...............
+    0000007fdfdc9390 0000007fdfdc9340 ffffff80ffffffc8  @...............
+    0000007fdfdc93a0 0000000000000010 b4000071e0c23100  .........1..q...
+    0000007fdfdc93b0 0000007fdfdc9430 0000007fdfdc9380  0...............
+    0000007fdfdc93c0 0000007fdfdc9340 ffffff80ffffffc8  @...............
+    0000007fdfdc93d0 0000007fdfdc9430 0000007fdfdc9380  0...............
+    0000007fdfdc93e0 0000007fdfdc9340 ffffff80ffffffc8  @...............
+    0000007fdfdc93f0 0000007fdfdc9430 00000071e0afa9e8  0...........q...
+    0000007fdfdc9400 00000071e0b39168 000000726502ff80  h...q......er...
+    0000007fdfdc9410 aaaaaaaaaabad690 0000007fdfdc94b1  ................
+
+memory near x28 (/system_ext/lib64/libinstalldextimpl.so):
+    00000071e0b39140 0000002f61696465 0000000000000000  edia/...........
+    00000071e0b39150 78652f746e6d2f18 0000002f646e6170  ./mnt/expand/...
+    00000071e0b39160 0000000000000000 6d2f617461642f26  ........&/data/m
+    00000071e0b39170 666f72702f637369 0000000073656c69  isc/profiles....
+    00000071e0b39180 6d65747379732f10 000000000000002f  ./system/.......
+    00000071e0b39190 0000000000000000 612f617461642f24  ........$/data/a
+    00000071e0b391a0 69676174732d7070 00000000002f676e  pp-staging/.....
+    00000071e0b391b0 b4000071df447c80 b4000071df447d10  .|D.q....}D.q...
+    00000071e0b391c0 b4000071df447d10 0000000000000000  .}D.q...........
+    00000071e0b391d0 0000000000000000 0000000000000000  ................
+    00000071e0b391e0 0000000000000000 0000000000004000  .........@......
+    00000071e0b391f0 0000000000000000 0000000000000000  ................
+    00000071e0b39200 0000000000000000 0000000000000000  ................
+    00000071e0b39210 0000000000000000 0000000000000000  ................
+    00000071e0b39220 0000000000000000 0000000000000000  ................
+    00000071e0b39230 000000003f800000 b4000071e0c36008  ...?.....`..q...
+
+memory near x29 ([stack]):
+    0000007fdfdc9270 0000000000000000 0000000000000000  ................
+    0000007fdfdc9280 0000000000000000 0000000000000000  ................
+    0000007fdfdc9290 0000007fdfdc93f0 0000007262d04318  .........C.br...
+    0000007fdfdc92a0 0000007fdfdc9430 ffffffffffffffdf  0...............
+    0000007fdfdc92b0 0000007fdfdc9380 00000071e0ae186c  ........l...q...
+    0000007fdfdc92c0 6d65747379732f18 0000002f7070612f  ./system/app/...
+    0000007fdfdc92d0 74736e692077656e 7263203a65636e61  new instance: cr
+    0000007fdfdc92e0 74736e4965746165 00747845646c6c61  eateInstalldExt.
+    0000007fdfdc92f0 0000000000000000 0000000000000000  ................
+    0000007fdfdc9300 0000000000000000 8000000000000000  ................
+    0000007fdfdc9310 0000000000000000 0000000000000000  ................
+    0000007fdfdc9320 0000000000000000 0000000000000000  ................
+    0000007fdfdc9330 8060180680601806 8060180680601806  ..`...`...`...`.
+    0000007fdfdc9340 0000000000000000 00000071e0ae37cc  .........7..q...
+    0000007fdfdc9350 00000071e0c0d000 0000000000000002  ....q...........
+    0000007fdfdc9360 0000000000000080 0000007fdfdc94b9  ................
+
+memory near lr (/apex/com.android.runtime/lib64/bionic/libc.so):
+    0000007261159d70 128000156f00e400 ad0103e0aa0003f4  ...o............
+    0000007261159d80 ad0303e0ad0203e0 b9002bf5ad0403e0  .............+..
+    0000007261159d90 9401ed17b90033f3 10c92ee9d503201f  .3....... ......
+    0000007261159da0 93407e68f9001fff aa0803e0b90037e0  ....h~@..7......
+    0000007261159db0 910083e393407e81 528000c2ad400520  .~@..... .@....R
+    0000007261159dc0 d400000152801e08 528000c0910003e1  ...R...........R
+    0000007261159dd0 ad0007e0aa1f03e2 910063a19401edfa  .............c..
+    0000007261159de0 aa1f03e252800040 528015809401edf2  @..R...........R
+    0000007261159df0 aa0003f39401ed6c 9401ed6952801640  l.......@..Ri...
+    0000007261159e00 aa0003f46f00e400 ad0203e0ad0103e0  ...o............
+    0000007261159e10 ad0403e0ad0303e0 b90033f3b9002bf5  .........+...3..
+    0000007261159e20 f9001fff9401ecf4 b90037e093407e68  ........h~@..7..
+    0000007261159e30 93407e81aa0803e0 528000c2910083e3  .....~@........R
+    0000007261159e40 d400000152801e08 9401ede152800fe0  ...R.......R....
+    0000007261159e50 1401edb32a1f03e3 0000000000000000  ...*............
+    0000007261159e60 2a0103e2aa0003e8 aa0803e112800c60  .......*`.......
+
+memory near sp ([stack]):
+    0000007fdfdc91d0 ffffff80ffffffc8 0000007fdfdc9430  ........0.......
+    0000007fdfdc91e0 0000007fdfdc9380 00000071e0ae186c  ........l...q...
+    0000007fdfdc91f0 0000000000000000 0000000000000000  ................
+    0000007fdfdc9200 0000000000000000 0000000000000000  ................
+    0000007fdfdc9210 0000000000000000 00000000ffffffff  ................
+    0000007fdfdc9220 00000000000004ef 0000000000000000  ................
+    0000007fdfdc9230 0000000000000000 0000000000000000  ................
+    0000007fdfdc9240 0000000000000000 0000000000000000  ................
+    0000007fdfdc9250 0000000000000000 0000000000000000  ................
+    0000007fdfdc9260 0000000000000000 0000000000000000  ................
+    0000007fdfdc9270 0000000000000000 0000000000000000  ................
+    0000007fdfdc9280 0000000000000000 0000000000000000  ................
+    0000007fdfdc9290 0000007fdfdc93f0 0000007262d04318  .........C.br...
+    0000007fdfdc92a0 0000007fdfdc9430 ffffffffffffffdf  0...............
+    0000007fdfdc92b0 0000007fdfdc9380 00000071e0ae186c  ........l...q...
+    0000007fdfdc92c0 6d65747379732f18 0000002f7070612f  ./system/app/...
+
+memory near pc (/apex/com.android.runtime/lib64/bionic/libc.so):
+    0000007261159da0 93407e68f9001fff aa0803e0b90037e0  ....h~@..7......
+    0000007261159db0 910083e393407e81 528000c2ad400520  .~@..... .@....R
+    0000007261159dc0 d400000152801e08 528000c0910003e1  ...R...........R
+    0000007261159dd0 ad0007e0aa1f03e2 910063a19401edfa  .............c..
+    0000007261159de0 aa1f03e252800040 528015809401edf2  @..R...........R
+    0000007261159df0 aa0003f39401ed6c 9401ed6952801640  l.......@..Ri...
+    0000007261159e00 aa0003f46f00e400 ad0203e0ad0103e0  ...o............
+    0000007261159e10 ad0403e0ad0303e0 b90033f3b9002bf5  .........+...3..
+    0000007261159e20 f9001fff9401ecf4 b90037e093407e68  ........h~@..7..
+    0000007261159e30 93407e81aa0803e0 528000c2910083e3  .....~@........R
+    0000007261159e40 d400000152801e08 9401ede152800fe0  ...R.......R....
+    0000007261159e50 1401edb32a1f03e3 0000000000000000  ...*............
+    0000007261159e60 2a0103e2aa0003e8 aa0803e112800c60  .......*`.......
+    0000007261159e70 1401eddb2a1f03e3 0000000000000000  ...*............
+    0000007261159e80 f9000bf9a9bb7bfd a90357f6a9025ff8  .{......._...W..
+    0000007261159e90 910003fda9044ff4 10478268d503201f  .O....... ..h.G.
+
+memory map (281 entries):
+    0000005b'5c584000-0000005b'5c59afff r--         0     17000  /system/bin/installd (BuildId: 5c67191b33750f94c024a0aee3d80dc2)
+    0000005b'5c59c000-0000005b'5c5eefff r-x     18000     53000  /system/bin/installd (BuildId: 5c67191b33750f94c024a0aee3d80dc2)
+    0000005b'5c5f0000-0000005b'5c5f3fff r--     6c000      4000  /system/bin/installd (BuildId: 5c67191b33750f94c024a0aee3d80dc2)
+    0000005b'5c5f4000-0000005b'5c5f4fff rw-     70000      1000  /system/bin/installd (BuildId: 5c67191b33750f94c024a0aee3d80dc2)
+    00000071'dc1f8000-00000071'dcf7ffff ---         0    d88000
+    00000071'dcf80000-00000071'dcf83fff rw-         0      4000
+    00000071'dcf84000-00000071'dd1f7fff ---         0    274000
+    00000071'dd1f8000-00000071'dd1fbfff ---         0      4000
+    00000071'dd1fc000-00000071'dd2f7fff rw-         0     fc000  [anon:stack_and_tls:20387]
+    00000071'dd2f8000-00000071'dd2fbfff ---         0      4000
+    00000071'dd2fc000-00000071'ddd77fff ---         0    a7c000
+    00000071'ddd78000-00000071'ddd7bfff rw-         0      4000
+    00000071'ddd7c000-00000071'de2fbfff ---         0    580000
+    00000071'de2fc000-00000071'de2fffff ---         0      4000
+    00000071'de300000-00000071'de3fbfff rw-         0     fc000  [anon:stack_and_tls:2145]
+    00000071'de3fc000-00000071'de3fffff ---         0      4000
+    00000071'de400000-00000071'def47fff ---         0    b48000
+    00000071'def48000-00000071'def4bfff rw-         0      4000
+    00000071'def4c000-00000071'df3fffff ---         0    4b4000
+    00000071'df400000-00000071'df5fffff rw-         0    200000  [anon:libc_malloc]
+    00000071'df6cb000-00000071'df6cefff ---         0      4000
+    00000071'df6cf000-00000071'df7cafff rw-         0     fc000  [anon:stack_and_tls:2144]
+    00000071'df7cb000-00000071'df7cefff ---         0      4000
+    00000071'df7cf000-00000071'dfce3fff ---         0    515000
+    00000071'dfce4000-00000071'dfce7fff rw-         0      4000
+    00000071'dfce8000-00000071'e07cefff ---         0    ae7000
+    00000071'e07cf000-00000071'e07d2fff ---         0      4000
+    00000071'e07d3000-00000071'e08cefff rw-         0     fc000  [anon:stack_and_tls:1298]
+    00000071'e08cf000-00000071'e08d2fff ---         0      4000
+    00000071'e0ad1000-00000071'e0aecfff r--         0     1c000  /system_ext/lib64/libinstalldextimpl.so (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+    00000071'e0aed000-00000071'e0b32fff r-x     1c000     46000  /system_ext/lib64/libinstalldextimpl.so (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+    00000071'e0b33000-00000071'e0b34fff ---         0      2000  [page size compat]
+    00000071'e0b35000-00000071'e0b36fff r--     64000      2000  /system_ext/lib64/libinstalldextimpl.so (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+    00000071'e0b37000-00000071'e0b38fff ---         0      2000
+    00000071'e0b39000-00000071'e0b39fff rw-     68000      1000  /system_ext/lib64/libinstalldextimpl.so (BuildId: 4ae19864d587e632c856b7b8cf75ccf4)
+    00000071'e0bc4000-00000071'e0bc6fff r--         0      3000  /system/lib64/libnetd_client.so (BuildId: fe6d93d8d1bd761074c0abe7d81361f2)
+    00000071'e0bc7000-00000071'e0bc7fff ---         0      1000  [page size compat]
+    00000071'e0bc8000-00000071'e0bccfff r-x      4000      5000  /system/lib64/libnetd_client.so (BuildId: fe6d93d8d1bd761074c0abe7d81361f2)
+    00000071'e0bcd000-00000071'e0bcffff ---         0      3000  [page size compat]
+    00000071'e0bd0000-00000071'e0bd0fff r--      c000      1000  /system/lib64/libnetd_client.so (BuildId: fe6d93d8d1bd761074c0abe7d81361f2)
+    00000071'e0bd1000-00000071'e0bd3fff ---         0      3000
+    00000071'e0bd4000-00000071'e0bd4fff rw-     10000      1000  /system/lib64/libnetd_client.so (BuildId: fe6d93d8d1bd761074c0abe7d81361f2)
+    00000071'e0c00000-00000071'e0ffffff rw-         0    400000  [anon:libc_malloc]
+    00000071'e1004000-00000071'e12ddfff ---         0    2da000  [anon:cfi shadow]
+    00000071'e12de000-00000071'e12defff r--         0      1000  [anon:cfi shadow]
+    00000071'e12df000-00000071'e1392fff ---         0     b4000  [anon:cfi shadow]
+    00000071'e1393000-00000071'e1393fff r--         0      1000  [anon:cfi shadow]
+    00000071'e1394000-00000071'e1396fff ---         0      3000  [anon:cfi shadow]
+    00000071'e1397000-00000071'e1397fff r--         0      1000  [anon:cfi shadow]
+    00000071'e1398000-00000072'61003fff ---         0  7fc6c000  [anon:cfi shadow]
+    00000072'61004000-00000072'61063fff rw-         0     60000  [anon:linker_alloc]
+    00000072'61064000-00000072'61065fff r--         0      2000  /system/lib64/server_configurable_flags.so (BuildId: 7b78d122dc03859dc59a3821bc56d9e2)
+    00000072'61066000-00000072'61067fff ---         0      2000  [page size compat]
+    00000072'61068000-00000072'61069fff r-x      4000      2000  /system/lib64/server_configurable_flags.so (BuildId: 7b78d122dc03859dc59a3821bc56d9e2)
+    00000072'6106a000-00000072'6106bfff ---         0      2000  [page size compat]
+    00000072'6106c000-00000072'6106cfff r--      8000      1000  /system/lib64/server_configurable_flags.so (BuildId: 7b78d122dc03859dc59a3821bc56d9e2)
+    00000072'61083000-00000072'61087fff r--         0      5000  /system/lib64/liblog.so (BuildId: 1f6868e39cdab5f6aa7b03f6b0e75afe)
+    00000072'61088000-00000072'6108afff ---         0      3000  [page size compat]
+    00000072'6108b000-00000072'61094fff r-x      8000      a000  /system/lib64/liblog.so (BuildId: 1f6868e39cdab5f6aa7b03f6b0e75afe)
+    00000072'61095000-00000072'61096fff ---         0      2000  [page size compat]
+    00000072'61097000-00000072'61097fff r--     14000      1000  /system/lib64/liblog.so (BuildId: 1f6868e39cdab5f6aa7b03f6b0e75afe)
+    00000072'61098000-00000072'6109afff ---         0      3000
+    00000072'6109b000-00000072'6109bfff rw-     18000      1000  /system/lib64/liblog.so (BuildId: 1f6868e39cdab5f6aa7b03f6b0e75afe)
+    00000072'610c6000-00000072'61111fff r--         0     4c000  /apex/com.android.runtime/lib64/bionic/libc.so (BuildId: 5144907d23fac121cc594696acde97e0)
+    00000072'61112000-00000072'611d6fff r-x     4c000     c5000  /apex/com.android.runtime/lib64/bionic/libc.so (BuildId: 5144907d23fac121cc594696acde97e0)
+    00000072'611d7000-00000072'611d9fff ---         0      3000  [page size compat]
+    00000072'611da000-00000072'611defff r--    114000      5000  /apex/com.android.runtime/lib64/bionic/libc.so (BuildId: 5144907d23fac121cc594696acde97e0)
+    00000072'611df000-00000072'611e1fff ---         0      3000
+    00000072'611e2000-00000072'611e2fff rw-    11c000      1000  /apex/com.android.runtime/lib64/bionic/libc.so (BuildId: 5144907d23fac121cc594696acde97e0)
+    00000072'611e3000-00000072'611e9fff rw-         0      7000  [anon:.bss]
+    00000072'611ea000-00000072'611edfff r--         0      4000  [anon:.bss]
+    00000072'611ee000-00000072'611f5fff rw-         0      8000  [anon:.bss]
+    00000072'61200000-00000072'629fffff ---         0   1800000
+    00000072'62a41000-00000072'62a4efff r--         0      e000  /system/lib64/libutils.so (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+    00000072'62a4f000-00000072'62a50fff ---         0      2000  [page size compat]
+    00000072'62a51000-00000072'62a60fff r-x     10000     10000  /system/lib64/libutils.so (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+    00000072'62a61000-00000072'62a61fff r--     20000      1000  /system/lib64/libutils.so (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+    00000072'62a62000-00000072'62a64fff ---         0      3000
+    00000072'62a65000-00000072'62a65fff rw-     24000      1000  /system/lib64/libutils.so (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+    00000072'62a9a000-00000072'62a9afff r--         0      1000  /apex/com.android.runtime/lib64/bionic/libdl.so (BuildId: 86be9613a3e71718babc0eec6c5f127a)
+    00000072'62a9b000-00000072'62a9dfff ---         0      3000  [page size compat]
+    00000072'62a9e000-00000072'62a9efff r-x      4000      1000  /apex/com.android.runtime/lib64/bionic/libdl.so (BuildId: 86be9613a3e71718babc0eec6c5f127a)
+    00000072'62a9f000-00000072'62aa1fff ---         0      3000  [page size compat]
+    00000072'62aa2000-00000072'62aa2fff r--      8000      1000  /apex/com.android.runtime/lib64/bionic/libdl.so (BuildId: 86be9613a3e71718babc0eec6c5f127a)
+    00000072'62aa3000-00000072'62aa5fff ---         0      3000
+    00000072'62aa6000-00000072'62aa6fff r--         0      1000  [anon:.bss]
+    00000072'62aa7000-00000072'62aa9fff rw-         0      3000  [anon:.bss]
+    00000072'62ade000-00000072'62af5fff r--         0     18000  /system/lib64/libcutils.so (BuildId: 07424140854184ce3a107d77579fdba0)
+    00000072'62af6000-00000072'62b22fff r-x     18000     2d000  /system/lib64/libcutils.so (BuildId: 07424140854184ce3a107d77579fdba0)
+    00000072'62b23000-00000072'62b25fff ---         0      3000  [page size compat]
+    00000072'62b26000-00000072'62b28fff r--     48000      3000  /system/lib64/libcutils.so (BuildId: 07424140854184ce3a107d77579fdba0)
+    00000072'62b29000-00000072'62b29fff ---         0      1000
+    00000072'62b2a000-00000072'62b2afff rw-     4c000      1000  /system/lib64/libcutils.so (BuildId: 07424140854184ce3a107d77579fdba0)
+    00000072'62b2b000-00000072'62b2dfff rw-         0      3000  [anon:.bss]
+    00000072'62b49000-00000072'62b62fff r--         0     1a000  /system/lib64/libprocessgroup.so (BuildId: d7eb2b37f57e8090c6057fe7d4d9f351)
+    00000072'62b63000-00000072'62b64fff ---         0      2000  [page size compat]
+    00000072'62b65000-00000072'62b9cfff r-x     1c000     38000  /system/lib64/libprocessgroup.so (BuildId: d7eb2b37f57e8090c6057fe7d4d9f351)
+    00000072'62b9d000-00000072'62b9efff r--     54000      2000  /system/lib64/libprocessgroup.so (BuildId: d7eb2b37f57e8090c6057fe7d4d9f351)
+    00000072'62b9f000-00000072'62ba0fff ---         0      2000
+    00000072'62ba1000-00000072'62ba1fff rw-     58000      1000  /system/lib64/libprocessgroup.so (BuildId: d7eb2b37f57e8090c6057fe7d4d9f351)
+    00000072'62bc0000-00000072'62bd0fff r--         0     11000  /system/lib64/libapexsupport.so (BuildId: c8b6852ad9a333e4ad285b95554a0070)
+    00000072'62bd1000-00000072'62bd3fff ---         0      3000  [page size compat]
+    00000072'62bd4000-00000072'62bf2fff r-x     14000     1f000  /system/lib64/libapexsupport.so (BuildId: c8b6852ad9a333e4ad285b95554a0070)
+    00000072'62bf3000-00000072'62bf3fff ---         0      1000  [page size compat]
+    00000072'62bf4000-00000072'62bf6fff r--     34000      3000  /system/lib64/libapexsupport.so (BuildId: c8b6852ad9a333e4ad285b95554a0070)
+    00000072'62bf7000-00000072'62bf7fff ---         0      1000
+    00000072'62bf8000-00000072'62bf8fff rw-     38000      1000  /system/lib64/libapexsupport.so (BuildId: c8b6852ad9a333e4ad285b95554a0070)
+    00000072'62c07000-00000072'62c0efff r--         0      8000  /system/lib64/libselinux.so (BuildId: f8fec599f8274a16cf4a760ccea6ad58)
+    00000072'62c0f000-00000072'62c20fff r-x      8000     12000  /system/lib64/libselinux.so (BuildId: f8fec599f8274a16cf4a760ccea6ad58)
+    00000072'62c21000-00000072'62c22fff ---         0      2000  [page size compat]
+    00000072'62c23000-00000072'62c23fff r--     1c000      1000  /system/lib64/libselinux.so (BuildId: f8fec599f8274a16cf4a760ccea6ad58)
+    00000072'62c24000-00000072'62c26fff ---         0      3000
+    00000072'62c27000-00000072'62c27fff rw-     20000      1000  /system/lib64/libselinux.so (BuildId: f8fec599f8274a16cf4a760ccea6ad58)
+    00000072'62c28000-00000072'62c28fff rw-         0      1000  [anon:.bss]
+    00000072'62c54000-00000072'62cd8fff r--         0     85000  /system/lib64/libc++.so (BuildId: 53e0091d25a788802d2d3a5324f79b527df4913f) (load bias 0x4000)
+    00000072'62cd9000-00000072'62cdbfff ---         0      3000
+    00000072'62cdc000-00000072'62d56fff r-x     84000     7b000  /system/lib64/libc++.so (BuildId: 53e0091d25a788802d2d3a5324f79b527df4913f) (load bias 0x4000)
+    00000072'62d57000-00000072'62d59fff ---         0      3000
+    00000072'62d5a000-00000072'62d61fff r--     fe000      8000  /system/lib64/libc++.so (BuildId: 53e0091d25a788802d2d3a5324f79b527df4913f) (load bias 0x4000)
+    00000072'62d62000-00000072'62d64fff ---         0      3000
+    00000072'62d65000-00000072'62d65fff rw-    105000      1000  /system/lib64/libc++.so (BuildId: 53e0091d25a788802d2d3a5324f79b527df4913f) (load bias 0x4000)
+    00000072'62d66000-00000072'62d6cfff rw-         0      7000  [anon:.bss]
+    00000072'62dc5000-00000072'62dc5fff r--         0      1000  /system/lib64/libvndksupport.so (BuildId: 4ae6c94d29fb894352e592be2823abd3)
+    00000072'62dc6000-00000072'62dc8fff ---         0      3000  [page size compat]
+    00000072'62dc9000-00000072'62dc9fff r-x      4000      1000  /system/lib64/libvndksupport.so (BuildId: 4ae6c94d29fb894352e592be2823abd3)
+    00000072'62dca000-00000072'62dccfff ---         0      3000  [page size compat]
+    00000072'62dcd000-00000072'62dcdfff r--      8000      1000  /system/lib64/libvndksupport.so (BuildId: 4ae6c94d29fb894352e592be2823abd3)
+    00000072'62dce000-00000072'62dd0fff ---         0      3000
+    00000072'62dd1000-00000072'62dd1fff rw-         0      1000  [anon:.bss]
+    00000072'62e00000-00000072'649fffff ---         0   1c00000
+    00000072'64a5e000-00000072'64a5ffff r--         0      2000  /system/lib64/libcgrouprc.so (BuildId: f31cdac63b5afcee1b88179c55ac4fcf)
+    00000072'64a60000-00000072'64a61fff ---         0      2000  [page size compat]
+    00000072'64a62000-00000072'64a62fff r-x      4000      1000  /system/lib64/libcgrouprc.so (BuildId: f31cdac63b5afcee1b88179c55ac4fcf)
+    00000072'64a63000-00000072'64a65fff ---         0      3000  [page size compat]
+    00000072'64a66000-00000072'64a66fff r--      8000      1000  /system/lib64/libcgrouprc.so (BuildId: f31cdac63b5afcee1b88179c55ac4fcf)
+    00000072'64a67000-00000072'64a69fff ---         0      3000
+    00000072'64a6a000-00000072'64a6afff rw-         0      1000  [anon:.bss]
+    00000072'64a78000-00000072'64a97fff r--         0     20000  /dev/__properties__/u:object_r:build_vendor_prop:s0
+    00000072'64a98000-00000072'64ae9fff r--         0     52000  /system/lib64/libbinder.so (BuildId: 303e88a911dc659a7652e60505b472f5)
+    00000072'64aea000-00000072'64aebfff ---         0      2000  [page size compat]
+    00000072'64aec000-00000072'64b49fff r-x     54000     5e000  /system/lib64/libbinder.so (BuildId: 303e88a911dc659a7652e60505b472f5)
+    00000072'64b4a000-00000072'64b4bfff ---         0      2000  [page size compat]
+    00000072'64b4c000-00000072'64b59fff r--     b4000      e000  /system/lib64/libbinder.so (BuildId: 303e88a911dc659a7652e60505b472f5)
+    00000072'64b5a000-00000072'64b5bfff ---         0      2000
+    00000072'64b5c000-00000072'64b5cfff rw-     c4000      1000  /system/lib64/libbinder.so (BuildId: 303e88a911dc659a7652e60505b472f5)
+    00000072'64b73000-00000072'64b92fff r--         0     20000  /dev/__properties__/u:object_r:storage_config_prop:s0
+    00000072'64b93000-00000072'64bb2fff r--         0     20000  /dev/__properties__/u:object_r:servicemanager_prop:s0
+    00000072'64bb3000-00000072'64bb3fff r--         0      1000  /system/lib64/libpackagelistparser.so (BuildId: 81d6be1f7977cf88721f0536223385b0)
+    00000072'64bb4000-00000072'64bb6fff ---         0      3000  [page size compat]
+    00000072'64bb7000-00000072'64bb7fff r-x      4000      1000  /system/lib64/libpackagelistparser.so (BuildId: 81d6be1f7977cf88721f0536223385b0)
+    00000072'64bb8000-00000072'64bbafff ---         0      3000  [page size compat]
+    00000072'64bbb000-00000072'64bbbfff r--      8000      1000  /system/lib64/libpackagelistparser.so (BuildId: 81d6be1f7977cf88721f0536223385b0)
+    00000072'64bbc000-00000072'64bbefff ---         0      3000
+    00000072'64bbf000-00000072'64bbffff rw-         0      1000  [anon:.bss]
+    00000072'64bc3000-00000072'64bd0fff r--         0      e000  /system/lib64/libbase.so (BuildId: 9240b9b59949a04f5dcb1595c642ecce)
+    00000072'64bd1000-00000072'64bd2fff ---         0      2000  [page size compat]
+    00000072'64bd3000-00000072'64bf3fff r-x     10000     21000  /system/lib64/libbase.so (BuildId: 9240b9b59949a04f5dcb1595c642ecce)
+    00000072'64bf4000-00000072'64bf6fff ---         0      3000  [page size compat]
+    00000072'64bf7000-00000072'64bf7fff r--     34000      1000  /system/lib64/libbase.so (BuildId: 9240b9b59949a04f5dcb1595c642ecce)
+    00000072'64bf8000-00000072'64bfafff ---         0      3000
+    00000072'64bfb000-00000072'64bfbfff rw-     38000      1000  /system/lib64/libbase.so (BuildId: 9240b9b59949a04f5dcb1595c642ecce)
+    00000072'64bfd000-00000072'64c1cfff r--         0     20000  /dev/__properties__/u:object_r:logd_prop:s0
+    00000072'64c1d000-00000072'64c2ffff r--         0     13000  /apex/com.android.runtime/lib64/bionic/libm.so (BuildId: 497eb6dea66eea9b9e6748b9a0e07874)
+    00000072'64c30000-00000072'64c30fff ---         0      1000  [page size compat]
+    00000072'64c31000-00000072'64c55fff r-x     14000     25000  /apex/com.android.runtime/lib64/bionic/libm.so (BuildId: 497eb6dea66eea9b9e6748b9a0e07874)
+    00000072'64c56000-00000072'64c58fff ---         0      3000  [page size compat]
+    00000072'64c59000-00000072'64c59fff r--     3c000      1000  /apex/com.android.runtime/lib64/bionic/libm.so (BuildId: 497eb6dea66eea9b9e6748b9a0e07874)
+    00000072'64c5a000-00000072'64c5cfff ---         0      3000
+    00000072'64c5d000-00000072'64c5dfff rw-     40000      1000  /apex/com.android.runtime/lib64/bionic/libm.so (BuildId: 497eb6dea66eea9b9e6748b9a0e07874)
+    00000072'64c65000-00000072'64c84fff r--         0     20000  /dev/__properties__/u:object_r:default_prop:s0
+    00000072'64c85000-00000072'64cedfff r--         0     69000  /system/lib64/libcrypto.so (BuildId: 3f114bb696bfb9454415cdef9fc52f9c)
+    00000072'64cee000-00000072'64cf0fff ---         0      3000  [page size compat]
+    00000072'64cf1000-00000072'64d0cfff r-x     6c000     1c000  /system/lib64/libcrypto.so (BuildId: 3f114bb696bfb9454415cdef9fc52f9c)
+    00000072'64d0d000-00000072'64d5efff --x     88000     52000  /system/lib64/libcrypto.so (BuildId: 3f114bb696bfb9454415cdef9fc52f9c)
+    00000072'64d5f000-00000072'64dddfff r-x     da000     7f000  /system/lib64/libcrypto.so (BuildId: 3f114bb696bfb9454415cdef9fc52f9c)
+    00000072'64dde000-00000072'64de0fff ---         0      3000  [page size compat]
+    00000072'64de1000-00000072'64deffff r--    15c000      f000  /system/lib64/libcrypto.so (BuildId: 3f114bb696bfb9454415cdef9fc52f9c)
+    00000072'64df0000-00000072'64df0fff ---         0      1000
+    00000072'64df1000-00000072'64df1fff rw-    16c000      1000  /system/lib64/libcrypto.so (BuildId: 3f114bb696bfb9454415cdef9fc52f9c)
+    00000072'64df2000-00000072'64df9fff rw-         0      8000  [anon:.bss]
+    00000072'64dfd000-00000072'64e00fff ---         0      4000
+    00000072'64e01000-00000072'64e08fff rw-         0      8000  [anon:thread signal stack]
+    00000072'64e09000-00000072'64e28fff r--         0     20000  /dev/__properties__/u:object_r:log_file_logger_prop:s0
+    00000072'64e29000-00000072'64e2afff r--         0      2000  /system/lib64/liblogwrap.so (BuildId: 35946dc08e172f97d7e46cb8f01007a3)
+    00000072'64e2b000-00000072'64e2cfff ---         0      2000  [page size compat]
+    00000072'64e2d000-00000072'64e2efff r-x      4000      2000  /system/lib64/liblogwrap.so (BuildId: 35946dc08e172f97d7e46cb8f01007a3)
+    00000072'64e2f000-00000072'64e30fff ---         0      2000  [page size compat]
+    00000072'64e31000-00000072'64e31fff r--      8000      1000  /system/lib64/liblogwrap.so (BuildId: 35946dc08e172f97d7e46cb8f01007a3)
+    00000072'64e32000-00000072'64e34fff ---         0      3000
+    00000072'64e35000-00000072'64e35fff rw-         0      1000  [anon:.bss]
+    00000072'64e3a000-00000072'64e59fff r--         0     20000  /dev/__properties__/u:object_r:log_tag_prop:s0
+    00000072'64e5a000-00000072'64e62fff r--         0      9000  /system/lib64/libziparchive.so (BuildId: bcdb10dc056d9cf3869b85b01e12898b)
+    00000072'64e63000-00000072'64e65fff ---         0      3000  [page size compat]
+    00000072'64e66000-00000072'64e71fff r-x      c000      c000  /system/lib64/libziparchive.so (BuildId: bcdb10dc056d9cf3869b85b01e12898b)
+    00000072'64e72000-00000072'64e72fff r--     18000      1000  /system/lib64/libziparchive.so (BuildId: bcdb10dc056d9cf3869b85b01e12898b)
+    00000072'64e73000-00000072'64e75fff ---         0      3000
+    00000072'64e76000-00000072'64e76fff rw-         0      1000  [anon:.bss]
+    00000072'64e7f000-00000072'64e9efff r--         0     20000  /dev/__properties__/u:object_r:heapprofd_prop:s0
+    00000072'64e9f000-00000072'64ec4fff r--         0     26000  /system/lib64/libpcre2.so (BuildId: 18430febc3899e064e2d4eeb1d417a10)
+    00000072'64ec5000-00000072'64ec6fff ---         0      2000  [page size compat]
+    00000072'64ec7000-00000072'64ef7fff r-x     28000     31000  /system/lib64/libpcre2.so (BuildId: 18430febc3899e064e2d4eeb1d417a10)
+    00000072'64ef8000-00000072'64efafff ---         0      3000  [page size compat]
+    00000072'64efb000-00000072'64efbfff r--     5c000      1000  /system/lib64/libpcre2.so (BuildId: 18430febc3899e064e2d4eeb1d417a10)
+    00000072'64efc000-00000072'64efefff ---         0      3000
+    00000072'64eff000-00000072'64efffff rw-     60000      1000  /system/lib64/libpcre2.so (BuildId: 18430febc3899e064e2d4eeb1d417a10)
+    00000072'64f00000-00000072'64f07fff r--         0      8000  /system/lib64/libz.so (BuildId: 042e020b7976bb3605127dcf03a8820b)
+    00000072'64f08000-00000072'64f1bfff r-x      8000     14000  /system/lib64/libz.so (BuildId: 042e020b7976bb3605127dcf03a8820b)
+    00000072'64f1c000-00000072'64f1cfff r--     1c000      1000  /system/lib64/libz.so (BuildId: 042e020b7976bb3605127dcf03a8820b)
+    00000072'64f1d000-00000072'64f1ffff ---         0      3000
+    00000072'64f20000-00000072'64f20fff rw-         0      1000  [anon:.bss]
+    00000072'64f28000-00000072'64f2bfff ---         0      4000
+    00000072'64f2c000-00000072'64f33fff rw-         0      8000  [anon:thread signal stack]
+    00000072'64f34000-00000072'64f53fff r--         0     20000  /dev/__properties__/u:object_r:libc_debug_prop:s0
+    00000072'64f54000-00000072'64f73fff r--         0     20000  /dev/__properties__/u:object_r:gwp_asan_prop:s0
+    00000072'64f74000-00000072'64f74fff r--         0      1000  /apex/com.android.runtime/lib64/bionic/libdl_android.so (BuildId: b654b257aae2c19d6e43a459d42fae2a)
+    00000072'64f75000-00000072'64f77fff ---         0      3000  [page size compat]
+    00000072'64f78000-00000072'64f78fff r-x      4000      1000  /apex/com.android.runtime/lib64/bionic/libdl_android.so (BuildId: b654b257aae2c19d6e43a459d42fae2a)
+    00000072'64f79000-00000072'64f7bfff ---         0      3000  [page size compat]
+    00000072'64f7c000-00000072'64f7cfff r--      8000      1000  /apex/com.android.runtime/lib64/bionic/libdl_android.so (BuildId: b654b257aae2c19d6e43a459d42fae2a)
+    00000072'64f86000-00000072'64f89fff ---         0      4000
+    00000072'64f8a000-00000072'64f91fff rw-         0      8000  [anon:thread signal stack]
+    00000072'64f92000-00000072'64fb1fff r--         0     20000  /dev/__properties__/u:object_r:debug_prop:s0
+    00000072'64fb2000-00000072'64fb2fff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'64fbc000-00000072'64fbcfff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'64fc2000-00000072'64fe1fff r--         0     20000  /dev/__properties__/properties_serial
+    00000072'64fe2000-00000072'64fe2fff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'64fe9000-00000072'64fecfff ---         0      4000
+    00000072'64fed000-00000072'64ff4fff rw-         0      8000  [anon:thread signal stack]
+    00000072'64ff5000-00000072'6502afff r--         0     36000  /dev/__properties__/property_info
+    00000072'6502b000-00000072'6502efff ---         0      4000
+    00000072'6502f000-00000072'65032fff rw-         0      4000  [anon:stack_and_tls:main]
+    00000072'65033000-00000072'65036fff ---         0      4000
+    00000072'65037000-00000072'65056fff r--         0     20000  /dev/__properties__/u:object_r:device_config_memory_safety_native_prop:s0
+    00000072'65057000-00000072'65076fff r--         0     20000  /dev/__properties__/u:object_r:arm64_memtag_prop:s0
+    00000072'65077000-00000072'65096fff r--         0     20000  /dev/__properties__/u:object_r:system_prop:s0
+    00000072'65097000-00000072'650b6fff r--         0     20000  /dev/__properties__/u:object_r:build_prop:s0
+    00000072'650b7000-00000072'650d6fff r--         0     20000  /dev/__properties__/u:object_r:vendor_socket_hook_prop:s0
+    00000072'650d7000-00000072'65196fff r--         0     c0000  [anon:linker_alloc]
+    00000072'65197000-00000072'65197fff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'6519a000-00000072'6519cfff rw-         0      3000  [anon:bionic_alloc_small_objects]
+    00000072'6519e000-00000072'6519efff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'651a1000-00000072'651a1fff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'651a4000-00000072'651a4fff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'651a9000-00000072'651a9fff rw-         0      1000  [anon:abort message]
+    00000072'651aa000-00000072'651abfff rw-         0      2000  [anon:bionic_alloc_small_objects]
+    00000072'651ac000-00000072'651b3fff rw-         0      8000  [anon:System property context nodes]
+    00000072'651b4000-00000072'651befff rw-         0      b000  [anon:bionic_alloc_small_objects]
+    00000072'651bf000-00000072'651defff r--         0     20000  /dev/__properties__/u:object_r:vndk_prop:s0
+    00000072'651df000-00000072'651e1fff rw-         0      3000  [anon:bionic_alloc_small_objects]
+    00000072'651e2000-00000072'65241fff r--         0     60000  [anon:linker_alloc]
+    00000072'65242000-00000072'65261fff r--         0     20000  /dev/__properties__/u:object_r:debug_prop:s0
+    00000072'65262000-00000072'65262fff ---         0      1000
+    00000072'65263000-00000072'6526afff rw-         0      8000
+    00000072'6526b000-00000072'6526bfff ---         0      1000
+    00000072'6526c000-00000072'6528bfff r--         0     20000  /dev/__properties__/properties_serial
+    00000072'6528c000-00000072'65293fff rw-         0      8000  [anon:System property context nodes]
+    00000072'65294000-00000072'652c9fff r--         0     36000  /dev/__properties__/property_info
+    00000072'652ca000-00000072'65329fff r--         0     60000  [anon:linker_alloc]
+    00000072'6532a000-00000072'6532afff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'6532b000-00000072'65757fff ---         0    42d000
+    00000072'65758000-00000072'6575bfff rw-         0      4000
+    00000072'6575c000-00000072'6632afff ---         0    bcf000
+    00000072'6632b000-00000072'6632efff ---         0      4000
+    00000072'6632f000-00000072'66336fff rw-         0      8000  [anon:thread signal stack]
+    00000072'66337000-00000072'66337fff r--         0      1000  /sys/fs/selinux/status
+    00000072'66338000-00000072'66338fff r--         0      1000  [anon:atexit handlers]
+    00000072'66339000-00000072'66339fff rw-         0      1000  [anon:arc4random data]
+    00000072'6633a000-00000072'6633bfff r--         0      2000  [vvar]
+    00000072'6633c000-00000072'6633cfff r-x         0      1000  [vdso]
+    00000072'6633d000-00000072'66386fff r--         0     4a000  /apex/com.android.runtime/bin/linker64 (BuildId: f930f62342ff573f2f54f35514a74bd0)
+    00000072'66387000-00000072'66387fff r--         0      1000  [anon:atexit handlers]
+    00000072'66388000-00000072'66388fff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'66389000-00000072'664a0fff r-x     4c000    118000  /apex/com.android.runtime/bin/linker64 (BuildId: f930f62342ff573f2f54f35514a74bd0)
+    00000072'664a1000-00000072'664aafff r--    164000      a000  /apex/com.android.runtime/bin/linker64 (BuildId: f930f62342ff573f2f54f35514a74bd0)
+    00000072'664ab000-00000072'664abfff rw-         0      1000  [anon:bionic_alloc_small_objects]
+    00000072'664ac000-00000072'664acfff rw-         0      1000  [anon:arc4random data]
+    00000072'664ad000-00000072'664aefff rw-    170000      2000  /apex/com.android.runtime/bin/linker64 (BuildId: f930f62342ff573f2f54f35514a74bd0)
+    00000072'664af000-00000072'664b4fff rw-         0      6000  [anon:.bss]
+    00000072'664b5000-00000072'664b8fff r--         0      4000  [anon:.bss]
+    00000072'664b9000-00000072'664c2fff rw-         0      a000  [anon:.bss]
+    0000007f'dfdb0000-0000007f'dfdd1fff rw-         0     22000  [stack]
+--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+Cmdline: /system/bin/installd
+pid: 1263, tid: 1298, name: binder:1263_1  >>> /system/bin/installd <<<
+uid: 0
+tagged_addr_ctrl: 0000000000000001 (PR_TAGGED_ADDR_ENABLE)
+    x0  fffffffffffffffc  x1  00000000c0306201  x2  00000071e08cbaa0  x3  0000000000000008
+    x4  0000000000000031  x5  b4000071df431538  x6  0000000000000030  x7  0000000017175a65
+    x8  000000000000001d  x9  00000071e08cba30  x10 00000071e08cba30  x11 00000071e08cba00
+    x12 ffffff80ffffffd0  x13 b4000071df410100  x14 0000000000000100  x15 0000000000000030
+    x16 0000007264b58c18  x17 0000007261166f70  x18 00000071dfce4000  x19 00000071e08cbf80
+    x20 0000000000000001  x21 b4000071df40e120  x22 0000000073682a85  x23 0000000000000000
+    x24 b4000071df40e148  x25 b4000071df40e148  x26 0000000000000000  x27 0000000066642a85
+    x28 0000000000000000  x29 00000071e08cba60
+    lr  0000007261167010  sp  00000071e08cb980  pc  00000072611c5eb8  pst 0000000080001000
+
+7 total frames
+backtrace:
+      #00 pc 00000000000ffeb8  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+8) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #01 pc 00000000000a100c  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+156) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #02 pc 00000000000562a8  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+632) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #03 pc 000000000007f4b8  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+88) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #04 pc 00000000000105c8  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+248) (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+      #05 pc 00000000000a6524  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+196) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #06 pc 00000000000978a0  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+64) (BuildId: 5144907d23fac121cc594696acde97e0)
+--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+Cmdline: /system/bin/installd
+pid: 1263, tid: 2144, name: binder:1263_2  >>> /system/bin/installd <<<
+uid: 0
+tagged_addr_ctrl: 0000000000000001 (PR_TAGGED_ADDR_ENABLE)
+    x0  fffffffffffffffc  x1  00000000c0306201  x2  00000071df7c7aa0  x3  0000000000000003
+    x4  0000000000000060  x5  000000726116c460  x6  00000071dd2f4c30  x7  00000000acd979ce
+    x8  000000000000001d  x9  00000071df7c7a30  x10 00000071df7c7a30  x11 00000071df7c7a00
+    x12 ffffff80ffffffd0  x13 b4000071e0c6e500  x14 0000000000000100  x15 0000000000000000
+    x16 0000007264b58c18  x17 0000007261166f70  x18 00000071def48000  x19 00000071df7c7f80
+    x20 0000000000000000  x21 b4000071e0c5a520  x22 0000000073682a85  x23 0000000000000000
+    x24 b4000071e0c5a548  x25 b4000071e0c5a548  x26 0000000000000000  x27 0000000066642a85
+    x28 0000000000000000  x29 00000071df7c7a60
+    lr  0000007261167010  sp  00000071df7c7980  pc  00000072611c5eb8  pst 0000000080001000
+
+7 total frames
+backtrace:
+      #00 pc 00000000000ffeb8  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+8) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #01 pc 00000000000a100c  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+156) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #02 pc 00000000000562a8  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+632) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #03 pc 000000000007f4b8  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+88) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #04 pc 00000000000105c8  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+248) (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+      #05 pc 00000000000a6524  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+196) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #06 pc 00000000000978a0  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+64) (BuildId: 5144907d23fac121cc594696acde97e0)
+--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+Cmdline: /system/bin/installd
+pid: 1263, tid: 2145, name: binder:1263_3  >>> /system/bin/installd <<<
+uid: 0
+tagged_addr_ctrl: 0000000000000001 (PR_TAGGED_ADDR_ENABLE)
+    x0  fffffffffffffffc  x1  00000000c0306201  x2  00000071de3f8aa0  x3  000000000000720c
+    x4  00000071df410600  x5  0000000000000004  x6  0000000035343132  x7  7f7f7f7f7f7f7f7f
+    x8  000000000000001d  x9  00000071de3f8a30  x10 00000071de3f8a30  x11 00000071de3f8a00
+    x12 ffffff80ffffffd0  x13 b4000071df410500  x14 0000000000000100  x15 0000000000000000
+    x16 0000007264b58c18  x17 0000007261166f70  x18 00000071ddd78000  x19 00000071de3f8f80
+    x20 0000000000000000  x21 b4000071df40f520  x22 0000000073682a85  x23 0000000000000000
+    x24 b4000071df40f548  x25 b4000071df40f548  x26 0000000000000000  x27 0000000066642a85
+    x28 0000000000000000  x29 00000071de3f8a60
+    lr  0000007261167010  sp  00000071de3f8980  pc  00000072611c5eb8  pst 0000000080001000
+
+7 total frames
+backtrace:
+      #00 pc 00000000000ffeb8  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+8) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #01 pc 00000000000a100c  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+156) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #02 pc 00000000000562a8  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+632) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #03 pc 000000000007f4b8  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+88) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #04 pc 00000000000105c8  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+248) (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+      #05 pc 00000000000a6524  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+196) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #06 pc 00000000000978a0  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+64) (BuildId: 5144907d23fac121cc594696acde97e0)
+--- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+Cmdline: /system/bin/installd
+pid: 1263, tid: 20387, name: binder:1263_4  >>> /system/bin/installd <<<
+uid: 0
+tagged_addr_ctrl: 0000000000000001 (PR_TAGGED_ADDR_ENABLE)
+    x0  fffffffffffffffc  x1  00000000c0306201  x2  00000071dd2f4aa0  x3  000000000000720c
+    x4  00000071e0c6e400  x5  0000000000000004  x6  0000000038333032  x7  7f7f7f7f7f7f7f7f
+    x8  000000000000001d  x9  00000071dd2f4a30  x10 00000071dd2f4a30  x11 00000071dd2f4a00
+    x12 ffffff80ffffffd0  x13 b4000071e0c6e300  x14 0000000000000100  x15 0000000000000000
+    x16 0000007264b58c18  x17 0000007261166f70  x18 00000071dcf80000  x19 00000071dd2f4f80
+    x20 0000000000000000  x21 b4000071e0c59520  x22 0000000073682a85  x23 0000000000000000
+    x24 b4000071e0c59548  x25 b4000071e0c59548  x26 0000000000000000  x27 0000000066642a85
+    x28 0000000000000000  x29 00000071dd2f4a60
+    lr  0000007261167010  sp  00000071dd2f4980  pc  00000072611c5eb8  pst 0000000080001000
+
+7 total frames
+backtrace:
+      #00 pc 00000000000ffeb8  /apex/com.android.runtime/lib64/bionic/libc.so (__ioctl+8) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #01 pc 00000000000a100c  /apex/com.android.runtime/lib64/bionic/libc.so (ioctl+156) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #02 pc 00000000000562a8  /system/lib64/libbinder.so (android::IPCThreadState::joinThreadPool(bool)+632) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #03 pc 000000000007f4b8  /system/lib64/libbinder.so (android::PoolThread::threadLoop()+88) (BuildId: 303e88a911dc659a7652e60505b472f5)
+      #04 pc 00000000000105c8  /system/lib64/libutils.so (android::Thread::_threadLoop(void*)+248) (BuildId: 8f22b7ae8fbe3a65f7aef142dd70ab90)
+      #05 pc 00000000000a6524  /apex/com.android.runtime/lib64/bionic/libc.so (__pthread_start(void*)+196) (BuildId: 5144907d23fac121cc594696acde97e0)
+      #06 pc 00000000000978a0  /apex/com.android.runtime/lib64/bionic/libc.so (__start_thread+64) (BuildId: 5144907d23fac121cc594696acde97e0)
+
+open files:
+    fd 0: /dev/null (unowned)
+    fd 1: /dev/null (unowned)
+    fd 2: /dev/null (unowned)
+    fd 3: socket:[25420] (unowned)
+    fd 4: /dev/binderfs/binder (unowned)
+    fd 5: /sys/kernel/tracing/trace_marker (unowned)
+    fd 6: /dev/urandom (unowned)
